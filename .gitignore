@@ -1,0 +1,12 @@
+# 廠內資料一律不進版控。
+# 這個 repo 是公開的(免費帳號的 GitHub Pages 只能從公開 repo 發佈),
+# 而這些檔案裡有維修內容、廠商與同事姓名、機台編號與藥液參數。
+# 程式可以公開,資料不行。
+import.json
+ColorNote 項目整理.xlsx
+COLORNOTE 原始資料/
+
+# 其他
+node_modules/
+.DS_Store
+Thumbs.db

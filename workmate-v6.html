@@ -1,0 +1,425 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<style>
+:root{--bg:#EDEFEC;--card:#FFFFFF;--ink:#16211F;--mute:#65726E;--line:#D8DDD8;
+  --teal:#0D5F51;--rust:#A8480D;--amber:#8A6A0B;--blue:#1F4E6B;--shell:#FBFCFA}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC",sans-serif;
+  font-size:16px;line-height:1.5}
+#wrap{position:relative;height:100dvh;max-width:520px;margin:0 auto;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100dvh;background:var(--shell)}
+header{padding:14px 16px 0}
+.hrow{display:flex;align-items:baseline;justify-content:space-between}
+h1{margin:0;font-size:19px;font-weight:700;letter-spacing:-.01em}
+.count{font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums}
+.syncbar{display:flex;align-items:center;gap:8px;margin-top:10px;padding:7px 11px;border-radius:8px;
+  background:#E9EDEA;font-size:13px;font-weight:600;color:var(--mute)}
+.syncbar.pend{background:#F5EBDC;color:#7A5510}
+.syncbar.off{background:#F2E2DA;color:#8A3A0B}
+.dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex:0 0 8px}
+.dot.spin{animation:p 1s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.dot.spin{animation:none}}
+.netbtn{margin-left:auto;padding:4px 10px;border:1px solid currentColor;border-radius:999px;
+  font-size:12px;font-weight:700;cursor:pointer;opacity:.75;background:none;color:inherit;font-family:inherit}
+.filters{display:flex;gap:6px;margin:10px 0;overflow-x:auto;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;padding:8px 13px;border:1px solid var(--line);background:var(--card);
+  border-radius:999px;font-size:14px;color:var(--mute);cursor:pointer;font-weight:500;white-space:nowrap}
+.chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.chip b{font-weight:700;font-variant-numeric:tabular-nums;opacity:.7;margin-left:3px}
+main{flex:1;overflow-y:auto;padding:0 12px 84px}
+.mhead{margin:16px 4px 8px;font-size:12px;font-weight:700;color:var(--mute);letter-spacing:.05em}
+.mhead span{font-weight:500;font-variant-numeric:tabular-nums}
+.item{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;
+  margin-bottom:8px;overflow:hidden;cursor:pointer}
+.bar{width:5px;flex:0 0 5px;background:var(--line)}
+.bar.k1{background:var(--teal)}.bar.k2{background:var(--amber)}.bar.k3{background:var(--rust)}
+.bar.k4{background:#7A8B86}.bar.k5{background:var(--blue)}
+.body{padding:11px 12px 11px 11px;min-width:0}
+.meta{display:flex;align-items:center;gap:7px;margin-bottom:3px;flex-wrap:wrap}
+.tag{font-size:12px;font-weight:700;padding:2px 7px;border-radius:4px;background:#E4EBE8;color:#2C403B}
+.tag.k2{background:#F6EEDC;color:#6E5410}.tag.k3{background:#F4E6DC;color:#7A3F14}
+.tag.k4{background:#E9EDEB;color:#41504C}.tag.k5{background:#E0E9EF;color:#1F4E6B}
+.loc{font-size:12px;font-weight:600;color:#3E4D49;letter-spacing:.01em}
+.loc em{font-style:normal;font-weight:800;color:var(--ink)}
+.code{font-size:12px;font-weight:800;letter-spacing:.03em;padding:2px 7px;border-radius:4px;
+  background:var(--ink);color:#fff}
+.stat{font-size:12px;color:var(--mute);font-weight:500}
+.pin{font-size:11px;font-weight:700;color:#8A6A0B;border:1px solid #E4D3AE;padding:1px 6px;
+  border-radius:4px;background:#FBF4E6}
+.stale{margin-left:auto;font-size:12px;font-variant-numeric:tabular-nums;color:var(--mute)}
+.stale.hot{color:var(--rust);font-weight:700}
+.text{font-size:16px;line-height:1.45;word-break:break-word}
+.dates{margin-top:4px;font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
+.dates b{font-weight:700;color:#3B4A46}
+.hist{margin:2px 11px 12px;border-top:1px solid var(--line);padding-top:8px}
+.ev{display:flex;gap:10px;font-size:13px;color:var(--mute);padding:2px 0;font-variant-numeric:tabular-nums}
+.ev b{font-weight:600;color:var(--ink);min-width:58px}
+.acts{display:flex;gap:6px;padding:0 11px 11px}
+.act{flex:1;padding:11px 4px;border:1px solid var(--line);background:var(--shell);border-radius:8px;
+  font-size:14px;font-weight:600;text-align:center;cursor:pointer;color:var(--ink)}
+.act.go{background:var(--teal);border-color:var(--teal);color:#fff}
+.act.del{flex:0 0 62px;color:var(--rust);border-color:#E8D5CC}
+.empty{text-align:center;color:var(--mute);padding:52px 24px}
+.pcard{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--blue);
+  border-radius:10px;padding:13px 14px;margin-bottom:10px}
+.pcard h2{margin:0 0 3px;font-size:16px;font-weight:700}
+.pmeta{font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
+.pmeta.hot{color:var(--rust);font-weight:700}
+.fab{position:absolute;right:16px;bottom:76px;width:62px;height:62px;border-radius:50%;
+  background:var(--ink);color:#fff;border:0;font-size:30px;line-height:1;cursor:pointer;
+  box-shadow:0 4px 14px rgba(20,30,28,.28);font-family:inherit}
+nav{display:flex;border-top:1px solid var(--line);background:var(--shell);
+  padding-bottom:env(safe-area-inset-bottom)}
+nav div{flex:1;padding:13px 4px 15px;text-align:center;font-size:14px;font-weight:600;
+  color:var(--mute);cursor:pointer}
+nav div.on{color:var(--ink);box-shadow:inset 0 2px 0 var(--ink)}
+nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-numeric:tabular-nums}
+
+/* ===== 置中彈出視窗 ===== */
+.veil{position:absolute;inset:0;background:rgba(18,26,24,.46);display:none;
+  align-items:center;justify-content:center;padding:16px}
+.veil.on{display:flex}
+.modal{width:100%;max-width:440px;background:var(--shell);border-radius:14px;
+  padding:16px 15px 15px;max-height:88dvh;overflow-y:auto;
+  box-shadow:0 18px 44px rgba(14,22,20,.3);transform:scale(.96);opacity:0;
+  transition:transform .13s ease-out,opacity .13s ease-out}
+.veil.on .modal{transform:scale(1);opacity:1}
+@media (prefers-reduced-motion:reduce){.modal{transition:none}}
+.mtitle{font-size:13px;font-weight:700;color:var(--mute);letter-spacing:.04em;margin-bottom:9px}
+#txt{width:100%;border:0;background:none;padding:0 0 12px;font-size:19px;line-height:1.45;
+  font-family:inherit;resize:none;color:var(--ink);font-weight:500}
+#txt:focus{outline:none}
+#txt::placeholder{color:#A6B0AC;font-weight:400}
+.optbox{border-top:1px solid var(--line);padding-top:10px}
+.orow{display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.orow:last-child{margin-bottom:0}
+.olab{font-size:11px;font-weight:700;color:#96A19D;letter-spacing:.06em;flex:0 0 30px;padding-top:7px}
+.sp{padding:6px 10px;border:1px solid var(--line);background:var(--card);border-radius:6px;
+  font-size:13px;font-weight:600;color:var(--mute);cursor:pointer;white-space:nowrap}
+.sp.on{background:var(--teal);border-color:var(--teal);color:#fff}
+#code{border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:13px;
+  font-weight:600;width:82px;font-family:inherit;background:var(--card);color:var(--ink)}
+#code:focus{outline:1px solid var(--teal)}
+.err{color:var(--rust);font-size:13px;margin-top:9px;display:none}
+.err.on{display:block}
+.srow{display:flex;gap:8px;margin-top:14px}
+.srow button{padding:14px;border-radius:9px;font-size:16px;font-weight:600;cursor:pointer;
+  font-family:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);flex:0 0 92px}
+.srow button.save{flex:1;background:var(--teal);border-color:var(--teal);color:#fff}
+.toast{position:absolute;left:50%;bottom:150px;transform:translateX(-50%);background:var(--ink);
+  color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;
+  transition:opacity .2s;white-space:nowrap;z-index:5}
+.toast.on{opacity:1}
+</style>
+
+<div id="wrap">
+  <div id="app">
+    <header>
+      <div class="hrow"><h1 id="title"></h1><span class="count" id="count"></span></div>
+      <div class="syncbar" id="syncbar"></div>
+      <div class="filters" id="filters"></div>
+    </header>
+    <main id="list"></main>
+    <nav id="nav"></nav>
+  </div>
+  <button class="fab" id="fab">+</button>
+  <div class="veil" id="veil">
+    <div class="modal" id="modal">
+      <div class="mtitle" id="mtitle">新增待辦</div>
+      <textarea id="txt" rows="3"></textarea>
+      <div class="optbox">
+        <div class="orow"><span class="olab">類別</span><span id="pCat" style="display:contents"></span></div>
+        <div class="orow"><span class="olab">站別</span><span id="pSta" style="display:contents"></span></div>
+        <div class="orow"><span class="olab">機台</span><span id="pMac" style="display:contents"></span></div>
+        <div class="orow" id="rFx"><span class="olab">治具</span>
+          <input id="code" placeholder="編號"><span id="pEv" style="display:contents"></span></div>
+      </div>
+      <div class="err" id="err"></div>
+      <div class="srow"><button id="cancel">取消</button><button class="save" id="save">建立</button></div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+/* ===== 站別與機台 ===== */
+const STATIONS={
+  ECU:['主線','敘豐A part','敘豐B part','EFEM投板','EFEM收板','IPQC'],
+  EPG:['主線','敘豐A part','敘豐B part','敘豐前處理','敘豐後處理','IPQC','EFEM投板','EFEM收板','Plasma','Xray']
+};
+const STA=Object.keys(STATIONS);
+const FAM={
+  待辦:{cats:['工作','請購','領料'],k:{'工作':1,'請購':3,'領料':2}},
+  紀錄:{cats:['保養紀錄','更換備品紀錄','掛籃紀錄','飛靶紀錄'],k:4},
+  專案:{cats:['化銅線漏液改善追蹤','鎳鈀金線漏液改善追蹤'],k:5}
+};
+const FIXTURE=['掛籃紀錄','飛靶紀錄'];
+const EVENTS=['上線','定期換下','異常換下','保養完成'];
+const OPEN=['未處理','處理中'];
+const kOf=i=>i.family==='待辦'?FAM.待辦.k[i.cat]:i.family==='紀錄'?4:5;
+
+/* ===== 1. 本地儲存 ===== */
+const Store=(()=>{
+  let mem=new Map(), idb=null;
+  const open=()=>new Promise(res=>{
+    try{const r=indexedDB.open('workmate_v6',1);
+      r.onupgradeneeded=e=>e.target.result.createObjectStore('items',{keyPath:'id'});
+      r.onsuccess=e=>res(e.target.result); r.onerror=()=>res(null);
+      setTimeout(()=>res(null),1200)}catch(e){res(null)}});
+  const tx=(m,fn)=>new Promise(res=>{
+    const t=idb.transaction('items',m), s=t.objectStore('items'), rq=fn(s);
+    t.oncomplete=()=>res(rq&&rq.result); t.onerror=()=>res(null)});
+  const fix=o=>({id:o.id,family:o.family||'待辦',cat:o.cat||'工作',
+    sta:STA.includes(o.sta)?o.sta:STA[0],
+    mac:typeof o.mac==='string'?o.mac:'',
+    code:o.code||'',event:o.event||'',text:o.text||'',status:o.status||'未處理',
+    created:o.created||Date.now(),updated:o.updated||o.created||Date.now(),
+    at:o.at||o.created||Date.now(),doneAt:o.doneAt??null,
+    events:Array.isArray(o.events)&&o.events.length?o.events:[{at:o.created||Date.now(),to:'建立'}],
+    deleted:!!o.deleted,dirty:!!o.dirty});
+  return{async init(){idb=await open()},
+    async all(){const r=idb?(await tx('readonly',s=>s.getAll()))||[]:[...mem.values()];return r.map(fix)},
+    async put(o){mem.set(o.id,o); if(idb) await tx('readwrite',s=>s.put(o)); return o}};
+})();
+
+/* ===== 2. 資料模型 ===== */
+const DAY=864e5, today=new Date(); today.setHours(0,0,0,0);
+const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const Data={
+  async list(){return (await Store.all()).filter(i=>!i.deleted)},
+  async add(f){const t=Date.now();
+    return Store.put({id:newId(),family:f.family,cat:f.cat,sta:f.sta,mac:f.mac||'',code:f.code||'',
+      event:f.event||'',text:f.text,status:f.family==='待辦'?'未處理':'—',
+      created:t,updated:t,at:t,doneAt:null,events:[{at:t,to:'建立'}],deleted:false,dirty:true})},
+  async setStatus(id,st){const it=(await Store.all()).find(x=>x.id===id); if(!it||it.status===st) return;
+    const t=Date.now();
+    return Store.put({...it,status:st,updated:t,doneAt:st==='已完成'?t:null,
+      events:[...it.events,{at:t,to:st}],dirty:true})},
+  async remove(id){const it=(await Store.all()).find(x=>x.id===id); if(!it) return;
+    return Store.put({...it,deleted:true,updated:Date.now(),dirty:true})},
+  async pending(){return (await Store.all()).filter(i=>i.dirty)}
+};
+
+/* ===== 3. 同步(接真後端只改 push) ===== */
+const Sync={online:true,busy:false,
+  async push(){if(this.busy||!this.online) return;
+    const q=await Data.pending(); if(!q.length) return;
+    this.busy=true; render(); await new Promise(r=>setTimeout(r,900));
+    if(!this.online){this.busy=false; return render()}
+    for(const it of q) await Store.put({...it,dirty:false});
+    this.busy=false; render(); toast(`已同步 ${q.length} 筆`)}};
+setInterval(()=>Sync.push(),4000);
+
+/* ===== 介面 ===== */
+let fam='待辦', sub='全部', open=null, all=[];
+const form={family:'待辦',cat:'工作',sta:'ECU',mac:'',code:'',event:'上線'};
+const d0=t=>new Date(t).setHours(0,0,0,0);
+const days=t=>Math.round((today-d0(t))/DAY);
+const md=t=>{const d=new Date(t);return `${d.getMonth()+1}/${String(d.getDate()).padStart(2,'0')}`};
+const ym=t=>{const d=new Date(t);return `${d.getFullYear()} 年 ${d.getMonth()+1} 月`};
+const esc=s=>String(s).replace(/</g,'&lt;');
+const loc=i=>`<span class="loc"><em>${i.sta}</em>${i.mac?' · '+esc(i.mac):''}</span>`;
+
+function cardTodo(i,ex){
+  const done=i.status==='已完成', d=days(i.updated), k=kOf(i);
+  const span=done?Math.max(0,Math.round((d0(i.doneAt)-d0(i.created))/DAY)):0;
+  const acts=ex?`<div class="acts">${done
+    ?`<div class="act" data-a="未處理" data-i="${i.id}">重新開啟</div>`
+    :['處理中','已完成'].map(s=>`<div class="act ${s==='已完成'?'go':''}" data-a="${s}" data-i="${i.id}">${s==='已完成'?'完成':s}</div>`).join('')
+  }<div class="act del" data-a="del" data-i="${i.id}">刪除</div></div>`:'';
+  const hist=ex?`<div class="hist">${i.events.map(e=>`<div class="ev"><b>${e.to}</b><span>${md(e.at)}</span></div>`).join('')}</div>`:'';
+  return `<div class="item"><div class="bar k${k}"></div><div style="flex:1;min-width:0">
+    <div class="body" data-tap="${i.id}"><div class="meta">
+      <span class="tag k${k}">${i.cat}</span>${loc(i)}
+      <span class="stat">${i.status}</span>${i.dirty?'<span class="pin">待上傳</span>':''}
+      ${done?'':`<span class="stale ${d>=7?'hot':''}">${d===0?'今天':`停滯 ${d} 天`}</span>`}
+    </div><div class="text">${esc(i.text)}</div>
+    <div class="dates">${done?`建立 <b>${md(i.created)}</b> → 完成 <b>${md(i.doneAt)}</b> · 歷時 ${span} 天`:`建立 ${md(i.created)}`}</div>
+    </div>${hist}${acts}</div></div>`;
+}
+function cardLog(i,ex){
+  const acts=ex?`<div class="acts"><div class="act del" data-a="del" data-i="${i.id}">刪除這筆</div></div>`:'';
+  return `<div class="item"><div class="bar k4"></div><div style="flex:1;min-width:0">
+    <div class="body" data-tap="${i.id}"><div class="meta">
+      <span class="tag k4">${i.cat.replace('紀錄','')}</span>
+      ${i.code?`<span class="code">${esc(i.code)}</span>`:''}${loc(i)}
+      ${i.event?`<span class="stat">${i.event}</span>`:''}
+      ${i.dirty?'<span class="pin">待上傳</span>':''}<span class="stale">${md(i.at)}</span>
+    </div><div class="text">${esc(i.text)}</div></div>${acts}</div></div>`;
+}
+function group(v,keyFn,cardFn){
+  let html='',cur='';
+  for(const i of v){const g=keyFn(i);
+    if(g!==cur){cur=g; html+=`<div class="mhead">${g} <span>· ${v.filter(x=>keyFn(x)===g).length} 筆</span></div>`}
+    html+=cardFn(i)}
+  return html;
+}
+
+async function render(){
+  all=await Data.list();
+  const pend=all.filter(i=>i.dirty).length;
+  const sb=document.getElementById('syncbar');
+  sb.className='syncbar '+(!Sync.online?'off':pend?'pend':'');
+  sb.innerHTML=`<span class="dot ${Sync.busy?'spin':''}"></span><span>${
+    !Sync.online?(pend?`離線中 · ${pend} 筆待上傳`:'離線中 · 記錄照常')
+    :Sync.busy?'同步中…':pend?`未同步 ${pend} 筆`:'已同步'}</span>
+    <button class="netbtn" id="net">${Sync.online?'模擬斷線':'恢復連線'}</button>`;
+  document.getElementById('net').onclick=e=>{e.stopPropagation();
+    Sync.online=!Sync.online; render(); if(Sync.online) Sync.push()};
+
+  const openN=all.filter(i=>i.family==='待辦'&&OPEN.includes(i.status)).length;
+  const N=document.getElementById('nav');
+  N.innerHTML=['待辦','紀錄','專案'].map(f=>{
+    const n=f==='待辦'?openN:all.filter(i=>i.family===f).length;
+    return `<div class="${f===fam?'on':''}" data-n="${f}">${f}<b>${n}</b></div>`}).join('');
+  N.onclick=e=>{const t=e.target.closest('[data-n]'); if(!t)return;
+    fam=t.dataset.n; sub='全部'; open=null; render()};
+
+  document.getElementById('title').textContent=fam==='待辦'?'待辦':fam==='紀錄'?'紀錄':'改善專案';
+
+  const F=document.getElementById('filters');
+  if(fam==='專案'){F.innerHTML=''; F.style.display='none'}
+  else{F.style.display='flex';
+    const tabs=fam==='待辦'?['全部',...FAM.待辦.cats,'已完成']:['全部',...FAM.紀錄.cats];
+    F.innerHTML=tabs.map(o=>{
+      let n;
+      if(fam==='待辦') n=o==='全部'?openN:o==='已完成'
+        ?all.filter(i=>i.family==='待辦'&&i.status==='已完成').length
+        :all.filter(i=>i.family==='待辦'&&i.cat===o&&OPEN.includes(i.status)).length;
+      else n=o==='全部'?all.filter(i=>i.family==='紀錄').length:all.filter(i=>i.cat===o).length;
+      return `<div class="chip ${o===sub?'on':''}" data-f="${o}">${o.replace('紀錄','')}${n?`<b>${n}</b>`:''}</div>`}).join('')}
+
+  const C=document.getElementById('count'), L=document.getElementById('list');
+  if(fam==='待辦'){
+    const op=all.filter(i=>i.family==='待辦'&&OPEN.includes(i.status));
+    const hot=op.filter(i=>days(i.updated)>=7).length;
+    C.textContent=hot?`未結 ${op.length} · 停滯 ${hot}`:`未結 ${op.length}`;
+    if(sub==='已完成'){
+      const v=all.filter(i=>i.family==='待辦'&&i.status==='已完成').sort((a,b)=>b.doneAt-a.doneAt);
+      return L.innerHTML=v.length?group(v,i=>ym(i.doneAt),i=>cardTodo(i,open===i.id))
+        :'<div class="empty">還沒有完成的項目。</div>'}
+    let v=sub==='全部'?op:op.filter(i=>i.cat===sub);
+    v.sort((a,b)=>a.updated-b.updated);
+    return L.innerHTML=v.length?v.map(i=>cardTodo(i,open===i.id)).join('')
+      :'<div class="empty">這裡是空的。<br>按右下角記一筆。</div>'}
+
+  if(fam==='紀錄'){
+    let v=all.filter(i=>i.family==='紀錄');
+    if(sub!=='全部') v=v.filter(i=>i.cat===sub);
+    v.sort((a,b)=>b.at-a.at);
+    C.textContent=`${v.length} 筆`;
+    return L.innerHTML=v.length?group(v,i=>ym(i.at),i=>cardLog(i,open===i.id))
+      :'<div class="empty">還沒有紀錄。</div>'}
+
+  const ps=all.filter(i=>i.family==='專案');
+  C.textContent=`${FAM.專案.cats.length} 個專案`;
+  L.innerHTML=FAM.專案.cats.map(p=>{
+    const us=ps.filter(i=>i.cat===p).sort((a,b)=>b.at-a.at);
+    const last=us[0]?days(us[0].at):null;
+    return `<div class="pcard"><h2>${p}</h2><div class="pmeta ${last!==null&&last>=14?'hot':''}">${
+      last===null?'尚無進度紀錄':`${us.length} 則更新 · 最近 ${last===0?'今天':`${last} 天前`}`}</div></div>`
+      +(us.map(i=>`<div class="item"><div class="bar k5"></div><div style="flex:1;min-width:0">
+        <div class="body" data-tap="${i.id}"><div class="meta"><span class="tag k5">進度</span>${loc(i)}
+        ${i.dirty?'<span class="pin">待上傳</span>':''}<span class="stale">${md(i.at)}</span></div>
+        <div class="text">${esc(i.text)}</div></div>
+        ${open===i.id?`<div class="acts"><div class="act del" data-a="del" data-i="${i.id}">刪除這筆</div></div>`:''}
+      </div></div>`).join('')||'<div class="empty" style="padding:16px">還沒有更新。</div>')}).join('');
+}
+
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');
+  clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),1600)}
+
+document.getElementById('filters').onclick=e=>{
+  const c=e.target.closest('[data-f]'); if(!c)return; sub=c.dataset.f; open=null; render()};
+document.getElementById('list').onclick=async e=>{
+  const t=e.target.closest('[data-tap]');
+  if(t){const id=t.dataset.tap; open=open===id?null:id; return render()}
+  const a=e.target.closest('[data-a]'); if(!a)return;
+  const {i:id,a:act}=a.dataset;
+  if(act==='del'){await Data.remove(id); open=null; await render(); toast('已刪除')}
+  else{await Data.setStatus(id,act); open=null; await render();
+    toast(act==='已完成'?`完成於 ${md(Date.now())}`:'改為'+act)}
+  Sync.push()};
+
+/* ---- 新增視窗 ---- */
+function renderForm(){
+  const cats=FAM[form.family].cats;
+  if(!cats.includes(form.cat)) form.cat=cats[0];
+  const macs=STATIONS[form.sta];
+  if(form.mac&&!macs.includes(form.mac)) form.mac='';
+  const sp=(k,v,label)=>`<span class="sp ${form[k]===v?'on':''}" data-k="${k}" data-v="${esc(v)}">${label}</span>`;
+  document.getElementById('pCat').innerHTML=cats.map(c=>sp('cat',c,c.replace('紀錄',''))).join('');
+  document.getElementById('pSta').innerHTML=STA.map(s=>sp('sta',s,s)).join('');
+  document.getElementById('pMac').innerHTML=sp('mac','','—')+macs.map(m=>sp('mac',m,m)).join('');
+  document.getElementById('pEv').innerHTML=EVENTS.map(v=>sp('event',v,v)).join('');
+  const fx=form.family==='紀錄'&&FIXTURE.includes(form.cat);
+  document.getElementById('rFx').style.display=fx?'flex':'none';
+  document.getElementById('mtitle').textContent=
+    form.family==='待辦'?'新增待辦':form.family==='紀錄'?'新增紀錄':'新增進度';
+  document.getElementById('txt').placeholder=
+    form.family==='待辦'?'要做什麼?':form.family==='紀錄'?'做了什麼?':'進度是什麼?';
+  document.getElementById('save').textContent=form.family==='待辦'?'建立':'記錄';
+}
+const veil=document.getElementById('veil');
+document.getElementById('fab').onclick=()=>{
+  form.family=fam;
+  form.cat=(fam!=='專案'&&FAM[fam].cats.includes(sub))?sub:FAM[fam].cats[0];
+  form.mac=''; form.code=''; form.event='上線';
+  document.getElementById('txt').value=''; document.getElementById('code').value='';
+  document.getElementById('err').classList.remove('on');
+  renderForm(); veil.classList.add('on');
+  setTimeout(()=>document.getElementById('txt').focus(),180)};
+const close=()=>{document.getElementById('txt').blur(); veil.classList.remove('on')};
+document.getElementById('cancel').onclick=close;
+veil.onclick=e=>{if(e.target===veil) close()};
+document.querySelector('.optbox').onclick=e=>{
+  const el=e.target.closest('.sp'); if(!el)return;
+  form[el.dataset.k]=el.dataset.v; renderForm()};
+document.getElementById('txt').oninput=()=>document.getElementById('err').classList.remove('on');
+document.getElementById('save').onclick=async()=>{
+  const t=document.getElementById('txt').value.trim(), err=document.getElementById('err');
+  if(!t){err.textContent='先寫一下內容'; err.classList.add('on');
+    document.getElementById('txt').focus(); return}
+  form.code=document.getElementById('code').value.trim();
+  await Data.add({...form,text:t});
+  close(); fam=form.family; sub=form.family==='專案'?'全部':form.cat;
+  open=null; await render(); toast('記下了'); Sync.push()};
+
+/* ---- 起動 ---- */
+(async()=>{
+  await Store.init();
+  if(!(await Store.all()).length){
+    const S=[
+      ['待辦','工作','ECU','主線','','','過濾幫浦異音,已報修等廠商回覆','未處理',14,11,null],
+      ['待辦','工作','EPG','Plasma','','','腔體壓力偏低,需校正','未處理',6,6,null],
+      ['待辦','工作','ECU','敘豐A part','','','天車定位偏移,下線時再調','處理中',4,2,null],
+      ['待辦','工作','EPG','Xray','','','影像對位漂移,已重新校正觀察中','處理中',3,1,null],
+      ['待辦','工作','ECU','EFEM投板','','','吸嘴真空不穩,偶發取放失敗','未處理',1,1,null],
+      ['待辦','領料','ECU','主線','','','幫浦機械軸封已到貨,待去倉庫領','未處理',9,9,null],
+      ['待辦','領料','EPG','敘豐B part','','','加熱器保險絲 × 10','未處理',2,2,null],
+      ['待辦','請購','EPG','','','','PVC 三通接頭 1 吋 × 20','未處理',11,11,null],
+      ['待辦','請購','ECU','IPQC','','','量測治具校正片 × 2','處理中',5,2,null],
+      ['待辦','工作','EPG','EFEM收板','','','排風機異音,已更換軸承','已完成',12,2,2],
+      ['待辦','領料','ECU','敘豐B part','','','過濾濾芯 5 微米 × 12','已完成',20,8,8],
+      ['紀錄','保養紀錄','ECU','主線','','','前置濾芯更換,槽液外觀正常','—',5,5,null],
+      ['紀錄','保養紀錄','EPG','Plasma','','','腔體清潔與 O-ring 更換','—',12,12,null],
+      ['紀錄','更換備品紀錄','ECU','敘豐A part','','','天車導輪 × 2,原廠件','—',8,8,null],
+      ['紀錄','掛籃紀錄','ECU','主線','B-13','異常換下','槽內結晶嚴重,提前換下送洗','—',2,2,null],
+      ['紀錄','飛靶紀錄','EPG','敘豐B part','T-07','定期換下','使用 31 天,依週期換下','—',6,6,null],
+      ['專案','化銅線漏液改善追蹤','ECU','','','','第三槽接頭全數改為法蘭式,觀察兩週未再滲漏','—',9,9,null],
+      ['專案','鎳鈀金線漏液改善追蹤','EPG','','','','加裝洩漏偵測感測器,已完成配線待測試','—',18,18,null]
+    ];
+    for(const [family,cat,sta,mac,code,event,text,status,cd,ud,dd] of S){
+      const c=today-cd*DAY, ev=[{at:c,to:'建立'}];
+      if(family==='待辦'&&status!=='未處理') ev.push({at:today-ud*DAY,to:status});
+      await Store.put({id:newId(),family,cat,sta,mac,code,event,text,status,created:c,
+        updated:today-ud*DAY,at:today-ud*DAY,doneAt:dd===null?null:today-dd*DAY,
+        events:ev,deleted:false,dirty:false});
+    }
+  }
+  await render();
+})();
+</script>

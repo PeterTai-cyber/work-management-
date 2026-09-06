@@ -1,0 +1,1265 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>工作管理助手</title>
+<meta name="description" content="濕製程機台維護紀錄,離線可用。">
+<meta name="theme-color" content="#FBFCFA">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="工作助手">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+:root{--bg:#EDEFEC;--card:#FFFFFF;--ink:#16211F;--mute:#65726E;--line:#D8DDD8;
+  --teal:#0D5F51;--rust:#A8480D;--amber:#8A6A0B;--blue:#1F4E6B;--shell:#FBFCFA}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* Android Chrome 的 Touch to Search:點到「可被選取的文字」就會跳出 Google 搜尋。
+   這個 app 幾乎每個字都在一個可以點的東西上面(分頁、chip、卡片、動作鈕),
+   所以整體關掉選取,只在真的要打字的輸入框開回來。
+   順便也擋掉長按跳出的複製選單和拖曳時的藍色反白——戴手套快速點按時那些都是誤觸。 */
+html{-webkit-user-select:none;-ms-user-select:none;user-select:none;
+  -webkit-touch-callout:none}
+input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC",sans-serif;
+  font-size:16px;line-height:1.5}
+#wrap{position:relative;height:100dvh;max-width:520px;margin:0 auto;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100dvh;background:var(--shell)}
+header{padding:calc(14px + env(safe-area-inset-top)) 16px 0}
+.hrow{display:flex;align-items:baseline;gap:2px}
+h1{margin:0;font-size:19px;font-weight:700;letter-spacing:-.01em}
+.count{margin-left:auto;font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums}
+.syncbar{display:flex;align-items:center;gap:8px;margin-top:10px;padding:7px 11px;border-radius:8px;
+  background:#E9EDEA;font-size:13px;font-weight:600;color:var(--mute)}
+.syncbar.pend{background:#F5EBDC;color:#7A5510}
+.syncbar.off{background:#F2E2DA;color:#8A3A0B}
+.dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex:0 0 8px}
+.dot.spin{animation:p 1s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.dot.spin{animation:none}}
+.netbtn{margin-left:auto;padding:4px 10px;border:1px solid currentColor;border-radius:999px;
+  font-size:12px;font-weight:700;cursor:pointer;opacity:.75;background:none;color:inherit;font-family:inherit}
+.filters{display:flex;gap:6px;margin:10px 0;overflow-x:auto;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;padding:8px 13px;border:1px solid var(--line);background:var(--card);
+  border-radius:999px;font-size:14px;color:var(--mute);cursor:pointer;font-weight:500;white-space:nowrap}
+.chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.chip.add{border-radius:7px;border-style:dashed;color:#8A948F;font-weight:700}
+/* 已完成不是「第四個類別」,所以它不在類別那一排,而是站在標題旁邊——
+   它切換的是整個畫面在看什麼,層級比選類別高一階。
+   淺框是為了不搶戲:未結的才是主角,這顆只是通往archive的門。 */
+.donebtn{margin-left:9px;padding:4px 11px;border:1px solid #DCE2DE;border-radius:7px;
+  background:#F1F4F1;color:#7A8B86;font-family:inherit;font-size:12px;font-weight:700;
+  cursor:pointer;white-space:nowrap}
+.donebtn b{margin-left:4px;font-variant-numeric:tabular-nums;opacity:.75}
+.donebtn.on{background:#485752;border-color:#485752;color:#fff}
+.chip b{font-weight:700;font-variant-numeric:tabular-nums;opacity:.7;margin-left:3px}
+main{flex:1;overflow-y:auto;padding:0 12px 84px;position:relative}
+.item.dragging{box-shadow:0 10px 26px rgba(14,22,20,.3);position:relative;z-index:3;
+  border-color:var(--teal)}
+.dropline{position:absolute;left:2px;right:2px;height:3px;border-radius:2px;
+  background:var(--teal);pointer-events:none;z-index:2}
+.mhead{margin:16px 4px 8px;font-size:12px;font-weight:700;color:var(--mute);letter-spacing:.05em}
+.mhead span{font-weight:500;font-variant-numeric:tabular-nums}
+.item{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;
+  margin-bottom:8px;overflow:hidden;cursor:pointer}
+.bar{width:5px;flex:0 0 5px;background:var(--line)}
+.bar.k1{background:var(--teal)}.bar.k2{background:var(--amber)}.bar.k3{background:var(--rust)}
+.bar.k4{background:#7A8B86}.bar.k5{background:var(--blue)}
+.bar.k6{background:#5B4B8A}.bar.k7{background:#8A2E5B}
+.bar.k8{background:#4F6B23}.bar.k9{background:#6E4A22}
+.bar.k0{background:#98A29E}
+/* 機台色:色條與機台名前面那顆點共用,一眼就對得起來。
+   機台名本身維持深色不上色——廠區光線很亮,彩色小字是最先看不清楚的東西。 */
+.mdot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;
+  vertical-align:-1px;flex:0 0 8px}
+.bar.m0{background:#C2C9C5}.mdot.m0{background:#C2C9C5}
+.bar.m1{background:#146B4F}.mdot.m1{background:#146B4F}
+.bar.m2{background:#2B5CA6}.mdot.m2{background:#2B5CA6}
+.bar.m3{background:#1E3A78}.mdot.m3{background:#1E3A78}
+.bar.m4{background:#5A86C9}.mdot.m4{background:#5A86C9}
+.bar.m5{background:#6A4FA8}.mdot.m5{background:#6A4FA8}
+.bar.m6{background:#9038A8}.mdot.m6{background:#9038A8}
+.bar.m7{background:#B03A6E}.mdot.m7{background:#B03A6E}
+.bar.m8{background:#B0600D}.mdot.m8{background:#B0600D}
+.bar.m9{background:#B02D2D}.mdot.m9{background:#B02D2D}
+.bar.m10{background:#5A7A14}.mdot.m10{background:#5A7A14}
+.body{padding:11px 12px 11px 11px;min-width:0}
+.meta{display:flex;align-items:center;gap:7px;margin-bottom:3px;flex-wrap:wrap}
+.tag{font-size:12px;font-weight:700;padding:2px 7px;border-radius:4px;background:#E4EBE8;color:#2C403B}
+.tag.k2{background:#F6EEDC;color:#6E5410}.tag.k3{background:#F4E6DC;color:#7A3F14}
+.tag.k4{background:#E9EDEB;color:#41504C}.tag.k5{background:#E0E9EF;color:#1F4E6B}
+.tag.k6{background:#E7E4F1;color:#463A6E}.tag.k7{background:#F3E1EA;color:#6E2247}
+.tag.k8{background:#E7EEDC;color:#3B521A}.tag.k9{background:#F0E8DE;color:#57391A}
+.tag.k0{background:#E9EDEB;color:#41504C}
+.tag.kq{background:#DFE7F2;color:#2B3F6B}
+.bar.kq{background:#3E5C8A}
+/* 調查的明細表。等寬數字對齊,一眼看得出哪個特別大或特別小 */
+.sum{font-size:13px;font-weight:700;color:#3B4A46;font-variant-numeric:tabular-nums}
+.srows{margin:2px 11px 11px;border-top:1px solid var(--line);padding-top:8px}
+.srow{display:flex;align-items:baseline;gap:10px;padding:3px 0;font-size:14px;
+  font-variant-numeric:tabular-nums}
+.srow b{font-weight:700;min-width:74px;color:var(--ink)}
+.srow .sv{font-weight:600;color:#3B4A46}
+.srow .sv i{font-style:normal;font-size:12px;color:var(--mute);margin-left:3px}
+.srow.gone{opacity:.5}
+.dl{margin-left:auto;font-size:12px;font-weight:700;padding:1px 7px;border-radius:4px;
+  font-variant-numeric:tabular-nums}
+.dl.up{background:#F4E6DC;color:#7A3F14}
+.dl.down{background:#E4EBE8;color:#2C403B}
+.dl.new{background:#F6EEDC;color:#6E5410}
+.dl.flat{background:none;color:#B4BDB9;font-weight:600}
+.cmp{margin:9px 11px 0;padding:8px 10px;border-radius:7px;background:#EFF2EF;
+  font-size:12px;font-weight:600;color:var(--mute);line-height:1.5}
+.cmp b{color:var(--ink);font-variant-numeric:tabular-nums}
+.snotes{margin:2px 11px 11px;padding-top:8px;border-top:1px solid var(--line);
+  font-size:13px;line-height:1.6;color:var(--mute);white-space:pre-wrap}
+.stitle{font-size:16px;line-height:1.45;font-weight:600;word-break:break-word}
+/* 明細輸入框用等寬字,打的時候位置那一欄就對得齊,錯行看得出來 */
+#detail{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 11px;
+  font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;font-size:14px;
+  line-height:1.65;background:var(--card);color:var(--ink);resize:vertical;min-height:118px}
+#detail:focus{outline:1px solid var(--teal)}
+#rDetail{margin-bottom:12px}
+.dhint{font-size:12px;color:var(--mute);line-height:1.6;margin:0 0 6px}
+.dhint b{color:#3B4A46;font-weight:700}
+.loc{font-size:12px;font-weight:600;color:#3E4D49;letter-spacing:.01em}
+.loc em{font-style:normal;font-weight:800;color:var(--ink)}
+.loc.none{color:#A6B0AC;font-weight:500}
+.code{font-size:12px;font-weight:800;letter-spacing:.03em;padding:2px 7px;border-radius:4px;
+  background:var(--ink);color:#fff}
+.stat{font-size:12px;color:var(--mute);font-weight:500}
+.pin{font-size:11px;font-weight:700;color:#8A6A0B;border:1px solid #E4D3AE;padding:1px 6px;
+  border-radius:4px;background:#FBF4E6}
+.stale{margin-left:auto;font-size:12px;font-variant-numeric:tabular-nums;color:var(--mute)}
+.stale.hot{color:var(--rust);font-weight:700}
+/* 到期日分五級。越急的顏色越實,遠的就只是一行灰字——
+   全部都上色等於全部都沒上色,顏色要留給真的該看的那幾張。 */
+.due{margin-left:auto;font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;
+  font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.5}
+.due.d0{background:var(--rust);color:#fff}                        /* 逾期 */
+.due.d1{background:#C2560F;color:#fff}                            /* 今天、明天 */
+.due.d3{background:var(--amber);color:#fff}                       /* 兩三天內 */
+.due.d7{background:#FBF4E6;color:#6E5410;border:1px solid #E4D3AE}/* 一週內 */
+.due.df{background:none;color:var(--mute);font-weight:600;padding:2px 0}
+/* 逾期的整張卡片墊一層很淡的紅。掃清單的時候是先看到「一片紅」才去看字 */
+.item.over{background:#FCF3EF;border-color:#EBD5CB}
+.text{font-size:16px;line-height:1.45;word-break:break-word;white-space:pre-wrap}
+.dates{margin-top:4px;font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
+.dates b{font-weight:700;color:#3B4A46}
+.hist{margin:2px 11px 12px;border-top:1px solid var(--line);padding-top:8px}
+.ev{display:flex;gap:10px;font-size:13px;color:var(--mute);padding:2px 0;font-variant-numeric:tabular-nums}
+.ev b{font-weight:600;color:var(--ink);min-width:58px}
+.acts{display:flex;gap:6px;padding:0 11px 8px}
+.acts:last-child{padding-bottom:11px}
+.act{flex:1;padding:11px 4px;border:1px solid var(--line);background:var(--shell);border-radius:8px;
+  font-size:14px;font-weight:600;text-align:center;cursor:pointer;color:var(--ink)}
+.act.go{background:var(--teal);border-color:var(--teal);color:#fff}
+.act.del{color:var(--rust);border-color:#E8D5CC}
+.empty{text-align:center;color:var(--mute);padding:52px 24px}
+/* 上下都要留白。看已完成時上面那排類別會整排收掉(display:none),
+   若只給下緣留白,篩選列就會直接貼上同步狀態列。
+   相鄰的上下 margin 會合併,所以類別列在的時候不會變成兩倍。 */
+.fbar{display:flex;gap:6px;margin:10px 0;align-items:center}
+.fsel{flex:1 1 0;min-width:0;padding:9px 24px 9px 9px;border:1px solid var(--line);border-radius:8px;
+  background-color:var(--card);color:var(--mute);font-family:inherit;font-size:13px;font-weight:600;
+  -webkit-appearance:none;appearance:none;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,#8A948F 50%),
+    linear-gradient(135deg,#8A948F 50%,transparent 50%);
+  background-position:calc(100% - 14px) 52%,calc(100% - 9px) 52%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+.fsel.on{border-color:var(--teal);color:var(--teal);background-color:#E8F0ED;font-weight:700}
+.fclr{flex:0 0 auto;padding:9px 11px;border:1px solid #E8D5CC;border-radius:8px;
+  background:var(--card);color:var(--rust);font-family:inherit;font-size:13px;
+  font-weight:700;cursor:pointer}
+.citem{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);
+  border-radius:9px;background:var(--card);margin-bottom:7px}
+.citem.warn{display:block;border-color:#E4D3AE;background:#FBF6EA}
+.cdot{width:11px;height:11px;border-radius:3px;flex:0 0 11px}
+.cdot.k1{background:var(--teal)}.cdot.k2{background:var(--amber)}.cdot.k3{background:var(--rust)}
+.cdot.k6{background:#5B4B8A}.cdot.k7{background:#8A2E5B}
+.cdot.k8{background:#4F6B23}.cdot.k9{background:#6E4A22}.cdot.k0{background:#98A29E}
+.citem b{font-size:16px;font-weight:700}
+.cn{margin-left:auto;font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums}
+.cx{padding:8px 12px;border:1px solid #E8D5CC;border-radius:7px;background:var(--shell);
+  color:var(--rust);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.cask{font-size:14px;line-height:1.5;margin-bottom:10px;color:var(--ink)}
+.cask b{font-weight:800}
+.cbtns{display:flex;gap:6px;flex-wrap:wrap}
+.cmv{padding:10px 14px;border:1px solid var(--teal);border-radius:7px;background:var(--teal);
+  color:#fff;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.crow{display:flex;gap:7px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+#cnew{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:12px 11px;
+  font-family:inherit;font-size:16px;background:var(--card);color:var(--ink)}
+#cnew:focus{outline:1px solid var(--teal)}
+#cadd{flex:0 0 78px;border:1px solid var(--teal);border-radius:8px;background:var(--teal);
+  color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer}
+.pcard{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--blue);
+  border-radius:10px;padding:13px 14px;margin-bottom:10px}
+.pcard h2{margin:0 0 3px;font-size:16px;font-weight:700}
+.pmeta{font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
+.pmeta.hot{color:var(--rust);font-weight:700}
+.fab{position:absolute;right:16px;bottom:76px;width:62px;height:62px;border-radius:50%;
+  background:var(--ink);color:#fff;border:0;font-size:30px;line-height:1;cursor:pointer;
+  box-shadow:0 4px 14px rgba(20,30,28,.28);font-family:inherit}
+nav{display:flex;border-top:1px solid var(--line);background:var(--shell);
+  padding-bottom:env(safe-area-inset-bottom)}
+nav div{flex:1;padding:13px 4px 15px;text-align:center;font-size:14px;font-weight:600;
+  color:var(--mute);cursor:pointer}
+nav div.on{color:var(--ink);box-shadow:inset 0 2px 0 var(--ink)}
+nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-numeric:tabular-nums}
+
+/* ===== 置中彈出視窗 ===== */
+.veil{position:absolute;inset:0;background:rgba(18,26,24,.46);display:none;
+  align-items:center;justify-content:center;padding:16px}
+.veil.on{display:flex}
+.modal{width:100%;max-width:440px;background:var(--shell);border-radius:14px;
+  padding:16px 15px 15px;max-height:88dvh;overflow-y:auto;
+  box-shadow:0 18px 44px rgba(14,22,20,.3);transform:scale(.96);opacity:0;
+  transition:transform .13s ease-out,opacity .13s ease-out}
+.veil.on .modal{transform:scale(1);opacity:1}
+@media (prefers-reduced-motion:reduce){.modal{transition:none}}
+.mtitle{font-size:13px;font-weight:700;color:var(--mute);letter-spacing:.04em;margin-bottom:9px}
+#txt{width:100%;border:0;background:none;padding:0 0 12px;font-size:19px;line-height:1.45;
+  font-family:inherit;resize:none;color:var(--ink);font-weight:500}
+#txt:focus{outline:none}
+#txt::placeholder{color:#A6B0AC;font-weight:400}
+.optbox{border-top:1px solid var(--line);padding-top:10px}
+.orow{display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.orow:last-child{margin-bottom:0}
+.olab{font-size:11px;font-weight:700;color:#96A19D;letter-spacing:.06em;flex:0 0 30px;padding-top:7px}
+.sp{padding:6px 10px;border:1px solid var(--line);background:var(--card);border-radius:6px;
+  font-size:13px;font-weight:600;color:var(--mute);cursor:pointer;white-space:nowrap}
+.sp.on{background:var(--teal);border-color:var(--teal);color:#fff}
+#ecd{border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px;
+  font-family:inherit;background:var(--card);color:var(--ink);font-weight:600}
+#ecd:focus{outline:1px solid var(--teal)}
+.ecdx{padding:7px 11px;border:1px solid var(--line);border-radius:6px;background:var(--card);
+  color:var(--mute);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer}
+#code{border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:13px;
+  font-weight:600;width:82px;font-family:inherit;background:var(--card);color:var(--ink);
+  text-transform:uppercase}
+#code:focus{outline:1px solid var(--teal)}
+.err{color:var(--rust);font-size:13px;margin-top:9px;display:none}
+.err.on{display:block}
+.srow{display:flex;gap:8px;margin-top:14px}
+.srow button{padding:14px;border-radius:9px;font-size:16px;font-weight:600;cursor:pointer;
+  font-family:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);flex:0 0 92px}
+.srow button.save{flex:1;background:var(--teal);border-color:var(--teal);color:#fff}
+.toast{position:absolute;left:50%;bottom:150px;transform:translateX(-50%);background:var(--ink);
+  color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;
+  transition:opacity .2s;white-space:nowrap;z-index:5;display:flex;align-items:center;gap:14px}
+.toast.on{opacity:1;pointer-events:auto}
+.toast button{background:none;border:0;padding:0;font-family:inherit;font-size:14px;
+  font-weight:700;color:#F0C46A;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="app">
+    <header>
+      <div class="hrow"><h1 id="title"></h1>
+        <button class="donebtn" id="donebtn">已完成</button>
+        <span class="count" id="count"></span></div>
+      <div class="syncbar" id="syncbar"></div>
+      <div class="filters" id="filters"></div>
+      <div class="fbar" id="fbar"></div>
+    </header>
+    <main id="list"></main>
+    <nav id="nav"></nav>
+  </div>
+  <button class="fab" id="fab" aria-label="新增">+</button>
+  <div class="veil" id="veil">
+    <div class="modal" id="modal">
+      <div class="mtitle" id="mtitle">新增待辦</div>
+      <textarea id="txt" rows="3"></textarea>
+      <div id="rDetail">
+        <div class="dhint">一行一筆,<b>位置 數值</b>。例:<b>#3 3.7</b>、<b>#12 2</b><br>
+          拆不出來的行會原樣留著,不會不見。</div>
+        <textarea id="detail" rows="6" placeholder="#3 3.7&#10;#8 4.9&#10;#13 1.0"></textarea>
+      </div>
+      <div class="optbox">
+        <div class="orow"><span class="olab">類別</span><span id="pCat" style="display:contents"></span></div>
+        <div class="orow"><span class="olab">站別</span><span id="pSta" style="display:contents"></span></div>
+        <div class="orow"><span class="olab">機台</span><span id="pMac" style="display:contents"></span></div>
+        <div class="orow" id="rEcd"><span class="olab">ECD</span>
+          <input type="date" id="ecd"><button class="ecdx" id="ecdClr">清除</button></div>
+        <div class="orow" id="rFx"><span class="olab">治具</span>
+          <input id="code" placeholder="編號" autocapitalize="characters"><span id="pEv" style="display:contents"></span></div>
+      </div>
+      <div class="err" id="err"></div>
+      <div class="srow"><button id="cancel">取消</button><button class="save" id="save">建立</button></div>
+    </div>
+  </div>
+  <div class="veil" id="cveil">
+    <div class="modal">
+      <div class="mtitle">待辦類別</div>
+      <div id="clist"></div>
+      <div class="crow"><input id="cnew" placeholder="新類別名稱" maxlength="6"><button id="cadd">新增</button></div>
+      <div class="err" id="cerr"></div>
+      <div class="srow"><button id="cclose" style="flex:1">關閉</button></div>
+    </div>
+  </div>
+  <input type="file" id="impFile" accept="application/json,.json" style="display:none">
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+/* ===== 站別與機台 ===== */
+const STATIONS={
+  ECU:['主線','敘豐A part','敘豐B part','EFEM投板','EFEM收板','IPQC'],
+  EPG:['主線','敘豐A part','敘豐B part','敘豐前處理','敘豐後處理','IPQC','EFEM投板','EFEM收板','Plasma','Xray']
+};
+const STA=Object.keys(STATIONS);
+const ALL_MACS=[...new Set([...STATIONS.ECU,...STATIONS.EPG])];
+const NONE='__none__';   // 篩選用:只看「沒填」的那些
+/* 待辦的類別是**使用者資料**,不是寫死的常數,所以用 getter 去問 Cats。
+   紀錄和專案的類別仍然固定——那兩類的欄位和行為是綁在類別上的
+   (掛籃要編號、專案要算停滯),開放自訂只會做出壞掉的組合。 */
+const FAM={
+  待辦:{get cats(){return Cats.names()}},
+  紀錄:{cats:['保養紀錄','更換備品紀錄','掛籃紀錄','飛靶紀錄']},
+  專案:{cats:['化銅線漏液改善追蹤','鎳鈀金線漏液改善追蹤']},
+  調查:{cats:['調查']}
+};
+const RESERVED=['已完成','全部'];   // 這兩個是分頁名,不能拿來當類別
+/* 機台配色。刻意照「機群」分:
+   敘豐那四台走藍到紫藍、EFEM 兩台走紫到洋紅、單獨的機台各自一個色相。
+   十台十個隨機顏色記不住,但「藍的那群是敘豐」記得住。
+   同名機台在兩個站別用同一個顏色——站別本來就靠粗體字分,不必再分一次。 */
+const MAC_COLOR={
+  '主線':'m1',
+  '敘豐A part':'m2','敘豐B part':'m3','敘豐前處理':'m4','敘豐後處理':'m5',
+  'EFEM投板':'m6','EFEM收板':'m7',
+  'IPQC':'m8','Plasma':'m9','Xray':'m10'
+};
+const macColor=m=>MAC_COLOR[m]||'m0';
+const FIXTURE=['掛籃紀錄','飛靶紀錄'];
+const EVENTS=['上線','定期換下','異常換下','保養完成'];
+const OPEN=['未處理'];
+const TODO_ST=['未處理','已完成'];
+// 舊資料裡的「處理中」併回未處理。手機上已經記過的東西不會自己跟著版本變。
+const LEGACY_ST={'處理中':'未處理'};
+const kOf=i=>i.family==='待辦'?Cats.colorOf(i.cat)
+  :i.family==='紀錄'?'k4':i.family==='調查'?'kq':'k5';
+const isFx=(family,cat)=>family==='紀錄'&&FIXTURE.includes(cat);
+
+/* ===== 明細解析 =====
+   調查類的輸入刻意維持自由文字——跟使用者在 ColorNote 上打的一模一樣,
+   一行一筆,存的時候才拆成「位置 → 數值」。
+
+   拆得出來才有辦法自動算總數、跟上一次比對,日報也才講得出
+   「#28 這次比上個月掉了 10%」;但如果為了拆得乾淨而要求他填表格,
+   站在機台旁邊就沒人會用了。所以拆不出來的行**原樣留著當備註**,絕不吃掉。 */
+function parseRows(detail){
+  const rows=[], notes=[];
+  for(const raw of String(detail||'').split('\n')){
+    const line=raw.trim();
+    if(!line) continue;
+    // 第一個詞當位置,後面第一個數字當數值,剩下的當單位或補充
+    const m=line.match(/^(\S+)[\s:：=]+(-?\d+(?:\.\d+)?)(.*)$/);
+    if(m) rows.push({k:m[1],v:parseFloat(m[2]),u:m[3].trim().slice(0,12)});
+    else notes.push(line);
+  }
+  return {rows,notes};
+}
+const numFmt=v=>Number.isInteger(v)?String(v):String(+v.toFixed(2));
+
+/* ===== 1. 本地儲存 ===== */
+const Store=(()=>{
+  let mem=new Map(), meta=new Map(), idb=null;
+  // v2 多了 meta 表放類別設定。onupgradeneeded 對全新和既有的資料庫都要能跑。
+  const openDB=()=>new Promise(res=>{
+    try{const r=indexedDB.open('workmate_v6',2);
+      r.onupgradeneeded=e=>{const db=e.target.result;
+        if(!db.objectStoreNames.contains('items')) db.createObjectStore('items',{keyPath:'id'});
+        if(!db.objectStoreNames.contains('meta')) db.createObjectStore('meta',{keyPath:'k'});};
+      r.onsuccess=e=>res(e.target.result); r.onerror=()=>res(null);
+      setTimeout(()=>res(null),1200)}catch(e){res(null)}});
+  // 交易失敗不可以懸掛,離線優先的前提是本地永遠會回應。失敗就降級記憶體。
+  const tx=(name,m,fn)=>new Promise(res=>{
+    try{
+      const t=idb.transaction(name,m), s=t.objectStore(name), rq=fn(s);
+      t.oncomplete=()=>res(rq&&rq.result);
+      t.onerror=t.onabort=()=>res(null);
+    }catch(e){idb=null; res(null)}});
+
+  /* 舊裝置上的舊資料不會跟著版本變,讀取時一律補齊並校驗。
+     不只補缺欄位,連「不可能的組合」也要擋掉:
+     family / cat / sta / mac / status 互相有約束,壞掉會讓卡片渲染整個爆掉。 */
+  const fix=o=>{
+    const family=FAM[o.family]?o.family:'待辦';
+    const cats=FAM[family].cats;
+    /* 待辦的類別不做白名單比對。
+       類別現在是使用者自己開的,別台裝置同步下來的類別本機可能還沒有;
+       若照舊「不認得就歸到第一類」,那批資料會被默默搬走,而且看不出來。
+       寧可先照原樣留著,再由 Cats.reconcile() 把沒見過的類別補進清單。 */
+    const cat=family==='待辦'
+      ?(typeof o.cat==='string'&&o.cat?o.cat:(cats[0]||'工作'))
+      :(cats.includes(o.cat)?o.cat:cats[0]);
+    /* 站別可以是空的。從 ColorNote 匯進來的舊資料有一半看不出是哪一站,
+       硬塞一個 ECU 比留白更糟:留白至少是誠實的,而且篩得出來、補得回去。
+       沒有站別時,機台的合法範圍是兩站的聯集。 */
+    const sta=STA.includes(o.sta)?o.sta:'';
+    const mac=(typeof o.mac==='string'&&(sta?STATIONS[sta]:ALL_MACS).includes(o.mac))?o.mac:'';
+    /* detail 是唯一的真相,rows / notes 每次讀取都重新算出來。
+       兩邊都存的話遲早會不一致,而且不一致的時候你不知道該信哪個。 */
+    const detail=family==='調查'&&typeof o.detail==='string'?o.detail:'';
+    const parsed=parseRows(detail);
+    const created=o.created||Date.now();
+    const raw=LEGACY_ST[o.status]||o.status;
+    const status=family==='待辦'?(TODO_ST.includes(raw)?raw:'未處理'):'—';
+    const updated=o.updated||created;
+    return{id:o.id,family,cat,sta,mac,
+      code:isFx(family,cat)&&typeof o.code==='string'?o.code:'',
+      event:isFx(family,cat)&&EVENTS.includes(o.event)?o.event:'',
+      text:typeof o.text==='string'?o.text:'',
+      detail,rows:parsed.rows,notes:parsed.notes,
+      ecd:(family==='待辦'&&typeof o.ecd==='number')?o.ecd:null,
+      /* 手動排序用。沒排過的就用建立時間換算:越新的值越小、排越前面,
+         剛好等於原本「新的在最上面」的順序,所以舊資料不會突然重排。 */
+      order:typeof o.order==='number'?o.order:-(o.created||Date.now()),
+      status,created,updated,
+      at:o.at||created,
+      edited:o.edited||null,
+      doneAt:status==='已完成'?(o.doneAt||updated):null,
+      events:Array.isArray(o.events)&&o.events.length?o.events:[{at:created,to:'建立'}],
+      deleted:!!o.deleted,dirty:!!o.dirty};
+  };
+  return{
+    async init(){idb=await openDB(); await Cats.load()},
+    async all(){const r=idb?(await tx('items','readonly',s=>s.getAll()))||[]:[...mem.values()];return r.map(fix)},
+    async put(o){mem.set(o.id,o); if(idb) await tx('items','readwrite',s=>s.put(o)); return o},
+    async getMeta(k){
+      if(!idb) return meta.get(k);
+      const r=await tx('meta','readonly',s=>s.get(k));
+      return r?r.v:meta.get(k)},
+    async setMeta(k,v){
+      meta.set(k,v);
+      if(idb) await tx('meta','readwrite',s=>s.put({k,v}));
+      return v}};
+})();
+
+/* ===== 1b. 待辦類別 ===== */
+/* 顏色是跟著類別存的,不是照順序算的。
+   照順序算的話,刪掉中間一個,後面全部的卡片顏色都會跟著換一輪。 */
+const CAT_COLORS=['k1','k3','k2','k6','k7','k8','k9'];
+const DEFAULT_CATS=[{name:'工作',c:'k1'},{name:'請購',c:'k3'},{name:'領料',c:'k2'}];
+const Cats={
+  list:[],
+  names(){return this.list.map(c=>c.name)},
+  colorOf(n){const c=this.list.find(x=>x.name===n); return c?c.c:'k0'},
+  nextColor(){
+    const used=new Set(this.list.map(c=>c.c));
+    return CAT_COLORS.find(c=>!used.has(c))||CAT_COLORS[this.list.length%CAT_COLORS.length]},
+  async load(){
+    const saved=await Store.getMeta('todoCats');
+    const ok=Array.isArray(saved)&&saved.length&&saved.every(c=>c&&typeof c.name==='string'&&c.name);
+    this.list=ok?saved.map(c=>({name:c.name,c:CAT_COLORS.includes(c.c)?c.c:'k0'}))
+                :DEFAULT_CATS.map(c=>({...c}));},
+  async save(){await Store.setMeta('todoCats',this.list.map(c=>({name:c.name,c:c.c})))},
+  /* 資料裡出現清單上沒有的類別,一律補進清單。
+     這是「資料不會消失」的最後一道保險:漏補的話,那些卡片不屬於任何分頁,
+     在畫面上等於不存在,但它其實還躺在資料庫裡。 */
+  async reconcile(items){
+    let add=false;
+    for(const i of items){
+      if(i.family==='待辦'&&i.cat&&!this.names().includes(i.cat)){
+        this.list.push({name:i.cat,c:this.nextColor()}); add=true}}
+    if(add) await this.save();
+    return add},
+  async add(name){
+    name=(name||'').trim();
+    if(!name) return '先打個名稱';
+    if([...name].length>6) return '最多 6 個字';
+    if(RESERVED.includes(name)) return `「${name}」是分頁名稱,換一個`;
+    if(this.names().includes(name)) return '已經有這個類別了';
+    this.list.push({name,c:this.nextColor()});
+    await this.save(); return null},
+  async remove(name){
+    if(this.list.length<=1) return '至少要留一個類別';
+    this.list=this.list.filter(c=>c.name!==name);
+    await this.save(); return null}
+};
+
+/* ===== 2. 資料模型 ===== */
+const DAY=864e5, today=new Date(); today.setHours(0,0,0,0);
+const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const byId=async id=>(await Store.all()).find(x=>x.id===id);
+const Data={
+  async list(){return (await Store.all()).filter(i=>!i.deleted)},
+  async add(f){const t=Date.now();
+    return Store.put({id:newId(),family:f.family,cat:f.cat,sta:f.sta,mac:f.mac||'',code:f.code||'',
+      event:f.event||'',text:f.text,detail:f.detail||'',ecd:f.ecd??null,
+      status:f.family==='待辦'?'未處理':'—',
+      created:t,updated:t,at:t,edited:null,doneAt:null,events:[{at:t,to:'建立'}],
+      deleted:false,dirty:true})},
+  /* 編輯內容刻意不動 updated / at:
+     updated 是「狀態最後有進展的時間」,停滯天數與排序都靠它。
+     改一個錯字就把停滯計時歸零,等於讓拖很久的項目從清單頂端消失。 */
+  async update(id,f){const it=await byId(id); if(!it) return;
+    return Store.put({...it,cat:f.cat,sta:f.sta,mac:f.mac||'',code:f.code||'',event:f.event||'',
+      text:f.text,detail:f.detail||'',ecd:f.ecd??null,edited:Date.now(),dirty:true})},
+  async setStatus(id,st){const it=await byId(id); if(!it||it.status===st) return;
+    const t=Date.now();
+    return Store.put({...it,status:st,updated:t,doneAt:st==='已完成'?t:null,
+      events:[...it.events,{at:t,to:st}],dirty:true})},
+  // 刪除留墓碑,否則下次同步會被雲端當成新資料抓回來
+  async remove(id){const it=await byId(id); if(!it) return;
+    return Store.put({...it,deleted:true,updated:Date.now(),dirty:true})},
+  async restore(id){const it=await byId(id); if(!it) return;
+    return Store.put({...it,deleted:false,updated:Date.now(),dirty:true})},
+  /* 刪類別時把底下的東西整批搬走。算內容變更不算狀態變更,
+     所以動 edited 不動 updated——停滯天數不該因為換了個類別就歸零。
+     連墓碑一起搬,否則哪天復原回來,又冒出一個誰都不認得的類別。 */
+  async moveCat(from,to){
+    const t=Date.now(); let n=0;
+    for(const it of await Store.all()){
+      if(it.family==='待辦'&&it.cat===from){
+        await Store.put({...it,cat:to,edited:t,dirty:true}); n++}}
+    return n},
+  /* 拖曳排序。只寫被拖的那一筆:新的 order 取前後兩張卡的中間值。
+     整批重新編號的話,一次拖曳就要寫幾百筆、全部變成待上傳,太貴。
+     排序不是狀態變更也不是內容變更,所以 updated 與 edited 都不動。 */
+  async reorder(id,ids,from,to){
+    const arr=[...ids];
+    arr.splice(from,1); arr.splice(to,0,id);
+    const map=new Map((await Store.all()).map(x=>[x.id,x]));
+    const it=map.get(id); if(!it) return;
+    const at=arr.indexOf(id);
+    const prev=at>0?map.get(arr[at-1]):null;
+    const next=at<arr.length-1?map.get(arr[at+1]):null;
+    // 中間擠不下了(浮點數精度用完)就把這一批重新編號,順序照拖完的樣子
+    if(prev&&next&&Math.abs(next.order-prev.order)<1e-3){
+      let base=0;
+      for(const x of arr){const o=map.get(x); if(o) await Store.put({...o,order:(base+=1e6),dirty:true})}
+      return;
+    }
+    const ord=!prev?(next?next.order:0)-1e6
+             :!next?prev.order+1e6
+             :(prev.order+next.order)/2;
+    return Store.put({...it,order:ord,dirty:true});
+  },
+  async pending(){return (await Store.all()).filter(i=>i.dirty)}
+};
+
+/* ===== 3. 同步(接真後端只改 push 裡的那段 await) ===== */
+// 指紋:送出前後比對同一筆有沒有被改過。相同才清 dirty。
+const sig=i=>`${i.updated}|${i.edited||0}|${i.deleted?1:0}|${i.status}`;
+const Sync={online:true,busy:false,
+  async push(){
+    if(this.busy||!this.online) return;
+    const q=await Data.pending(); if(!q.length) return;
+    this.busy=true; await render();
+    const sent=new Map(q.map(i=>[i.id,sig(i)]));
+
+    await new Promise(r=>setTimeout(r,900));   // ← TODO: 換成真的 fetch(後端端點)
+
+    this.busy=false;
+    if(!this.online) return render();
+    const now=new Map((await Store.all()).map(x=>[x.id,x]));
+    let n=0;
+    for(const [id,s] of sent){
+      const cur=now.get(id);
+      if(!cur) continue;
+      // 送出這 900ms 之間又被編輯過:保留 dirty,下一輪重送。
+      // 寧可重複送一筆(後端用 id 覆蓋),也不能用舊快照蓋掉新編輯。
+      if(s!==sig(cur)) continue;
+      await Store.put({...cur,dirty:false}); n++;
+    }
+    await render();
+    if(n) toast(`已同步 ${n} 筆`);
+  }};
+setInterval(()=>Sync.push(),4000);
+
+/* ===== 介面 ===== */
+let fam='待辦', sub='工作', open=null, all=[];
+/* 篩選條件,空字串等於不限。刻意跨分頁保留:
+   在 ECU 主線看完工作,切到請購時通常還想看同一台。 */
+const DEV=new URLSearchParams(location.search).has('dev');   // 模擬斷線那顆只在開發時出現
+let dragging=false;   // 拖到一半時背景同步不可以重畫清單,不然手上那張卡會被抽掉
+let lastCat='工作';   // 從哪一類跳去已完成的,按第二下要回得來
+const flt={sta:'',mac:'',cat:''};
+const fltOn=()=>!!(flt.sta||flt.mac||flt.cat);
+// 空字串=不限,__none__=只看沒填的。匯進來一大批沒站別的資料,總要找得到它們才補得完。
+const matchF=(v,f)=>!f||(f===NONE?!v:v===f);
+const applyFlt=(v,useCat=true)=>v.filter(i=>
+  matchF(i.sta,flt.sta)&&matchF(i.mac,flt.mac)&&(!useCat||!flt.cat||i.cat===flt.cat));
+const form={id:null,family:'待辦',cat:'工作',sta:'ECU',mac:'',code:'',event:'上線',detail:'',ecd:null};
+const $=id=>document.getElementById(id);
+const elTxt=$('txt'), elCode=$('code'), elErr=$('err'), veil=$('veil'), elDet=$('detail'),
+      elEcd=$('ecd');
+// <input type="date"> 收發的是 YYYY-MM-DD,存的是當天凌晨的時間戳
+const ecdToInput=t=>{if(t==null)return'';const d=new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+const inputToEcd=v=>{if(!v)return null;const t=new Date(v+'T00:00:00').getTime();
+  return Number.isFinite(t)?t:null};
+const d0=t=>new Date(t).setHours(0,0,0,0);
+const days=t=>Math.round((today-d0(t))/DAY);
+const md=t=>{const d=new Date(t);return `${d.getMonth()+1}/${String(d.getDate()).padStart(2,'0')}`};
+const ym=t=>{const d=new Date(t);return `${d.getFullYear()} 年 ${d.getMonth()+1} 月`};
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const loc=i=>{
+  if(!i.sta&&!i.mac) return '<span class="loc none">未指定</span>';
+  const m=i.mac?`<span class="mdot ${macColor(i.mac)}"></span>${esc(i.mac)}`:'';
+  return `<span class="loc">${i.sta?`<em>${i.sta}</em>`:''}${i.sta&&i.mac?' · ':''}${m}</span>`;
+};
+const editRow=i=>`<div class="acts">
+  <div class="act" data-a="edit" data-i="${i.id}">編輯</div>
+  <div class="act del" data-a="del" data-i="${i.id}">刪除</div></div>`;
+
+/* 右上角只放一個時間訊息。有 ECD 就講 ECD——有明確到期日的時候,
+   「還剩幾天」比「停滯幾天」有用得多;沒有 ECD 才回頭講停滯。 */
+const daysLeft=i=>i.ecd==null?null:Math.round((d0(i.ecd)-today)/DAY);
+const isOver=i=>i.status!=='已完成'&&daysLeft(i)!==null&&daysLeft(i)<0;
+function whenBadge(i){
+  const left=daysLeft(i);
+  if(left!==null){
+    if(left<0)   return `<span class="due d0">逾期 ${-left} 天</span>`;
+    if(left===0) return '<span class="due d1">今天到期</span>';
+    if(left===1) return '<span class="due d1">明天到期</span>';
+    if(left<=3)  return `<span class="due d3">剩 ${left} 天</span>`;
+    if(left<=7)  return `<span class="due d7">剩 ${left} 天</span>`;
+    return `<span class="due df">${md(i.ecd)} 到期</span>`;
+  }
+  const d=days(i.updated);
+  return `<span class="stale ${d>=7?'hot':''}">${d===0?'今天':`停滯 ${d} 天`}</span>`;
+}
+function cardTodo(i,ex){
+  const done=i.status==='已完成', d=days(i.updated), k=kOf(i);
+  const span=done?Math.max(0,Math.round((d0(i.doneAt)-d0(i.created))/DAY)):0;
+  const acts=ex?`<div class="acts">${done
+    ?`<div class="act" data-a="未處理" data-i="${i.id}">重新開啟</div>`
+    :`<div class="act go" data-a="已完成" data-i="${i.id}">完成</div>`
+  }</div>`+editRow(i):'';
+  const hist=ex?`<div class="hist">${i.events.map(e=>`<div class="ev"><b>${e.to}</b><span>${md(e.at)}</span></div>`).join('')}</div>`:'';
+  /* 色條給機台,不給類別。
+     類別各自一頁之後,同一頁裡每張卡的類別都一樣,色條等於沒帶資訊;
+     類別仍然由旁邊那顆有顏色的標籤負責。 */
+  /* 日期那一行收進展開後才顯示。
+     「未處理」三個字也拿掉了——已完成有自己一頁之後,未結清單裡每張卡都是未處理,
+     那是零資訊卻要佔位子。收起來的卡片只留真的要掃的東西。 */
+  const dates=ex?`<div class="dates">${done
+      ?`建立 <b>${md(i.created)}</b> → 完成 <b>${md(i.doneAt)}</b> · 歷時 ${span} 天`
+      :`建立 ${md(i.created)}`}${i.ecd!=null?` · ECD <b>${md(i.ecd)}</b>`:''}${
+      i.edited?` · 編輯 ${md(i.edited)}`:''}</div>`:'';
+  return `<div class="item${isOver(i)?' over':''}" data-did="${i.id}"><div class="bar ${macColor(i.mac)}"></div><div style="flex:1;min-width:0">
+    <div class="body" data-tap="${i.id}"><div class="meta">
+      <span class="tag ${k}">${esc(i.cat)}</span>${loc(i)}
+      ${i.dirty?'<span class="pin">待上傳</span>':''}
+      ${done?'':whenBadge(i)}
+    </div><div class="text">${esc(i.text)}</div>${dates}
+    </div>${hist}${acts}</div></div>`;
+}
+function cardLog(i,ex){
+  return `<div class="item"><div class="bar ${macColor(i.mac)}"></div><div style="flex:1;min-width:0">
+    <div class="body" data-tap="${i.id}"><div class="meta">
+      <span class="tag k4">${i.cat.replace('紀錄','')}</span>
+      ${i.code?`<span class="code">${esc(i.code)}</span>`:''}${loc(i)}
+      ${i.event?`<span class="stat">${i.event}</span>`:''}
+      ${i.dirty?'<span class="pin">待上傳</span>':''}<span class="stale">${md(i.at)}</span>
+    </div><div class="text">${esc(i.text)}</div>${
+      i.edited?`<div class="dates">編輯 ${md(i.edited)}</div>`:''}</div>${ex?editRow(i):''}</div></div>`;
+}
+function cardProj(i,ex){
+  return `<div class="item"><div class="bar ${macColor(i.mac)}"></div><div style="flex:1;min-width:0">
+    <div class="body" data-tap="${i.id}"><div class="meta"><span class="tag k5">進度</span>${loc(i)}
+    ${i.dirty?'<span class="pin">待上傳</span>':''}<span class="stale">${md(i.at)}</span></div>
+    <div class="text">${esc(i.text)}</div>${
+      i.edited?`<div class="dates">編輯 ${md(i.edited)}</div>`:''}</div>${ex?editRow(i):''}</div></div>`;
+}
+/* 同一個標題的上一次調查。標題就是這份調查的身分——
+   「Ecu抽風統計」做第二次時,拿它跟第一次比,才知道是變好還變壞。 */
+function prevSurvey(i){
+  const key=i.text.trim();
+  if(!key) return null;
+  return all.filter(x=>x.family==='調查'&&x.id!==i.id&&x.text.trim()===key&&x.at<i.at)
+    .sort((a,b)=>b.at-a.at)[0]||null;
+}
+function summarize(rows){
+  if(!rows.length) return null;
+  const v=rows.map(r=>r.v), sum=v.reduce((a,b)=>a+b,0);
+  // 整數當成「在數東西」,看合計;有小數當成「在量東西」,看平均
+  const counting=v.every(Number.isInteger);
+  return {counting,sum,avg:sum/v.length,
+    label:counting?`合計 ${numFmt(sum)}`:`平均 ${numFmt(sum/v.length)}`};
+}
+function cardSurvey(i,ex){
+  const rows=i.rows||[], notes=i.notes||[], sm=summarize(rows);
+  const head=rows.length?`${rows.length} 筆 · ${sm.label}`
+    :(notes.length?`${notes.length} 行備註`:'還沒有明細');
+
+  let body='';
+  if(ex){
+    const prev=prevSurvey(i);
+    const pm=prev?new Map((prev.rows||[]).map(r=>[r.k,r.v])):null;
+    if(rows.length){
+      const seen=new Set(rows.map(r=>r.k));
+      const lines=rows.map(r=>{
+        const p=pm?pm.get(r.k):undefined;
+        let d='';
+        if(pm){
+          if(p===undefined) d='<span class="dl new">新</span>';
+          else if(p!==r.v){const g=r.v-p;
+            d=`<span class="dl ${g>0?'up':'down'}">${g>0?'▲':'▼'}${numFmt(Math.abs(g))}</span>`}
+          else d='<span class="dl flat">—</span>';
+        }
+        return `<div class="srow"><b>${esc(r.k)}</b><span class="sv">${numFmt(r.v)}${
+          r.u?`<i>${esc(r.u)}</i>`:''}</span>${d}</div>`;
+      });
+      // 上次有、這次沒量到的也要列出來,不然會以為它消失了
+      if(pm) for(const [k,v] of pm)
+        if(!seen.has(k)) lines.push(`<div class="srow gone"><b>${esc(k)}</b>${
+          ''}<span class="sv">—</span><span class="dl">上次 ${numFmt(v)}</span></div>`);
+      body+=`<div class="srows">${lines.join('')}</div>`;
+    }
+    if(notes.length) body+=`<div class="snotes">${notes.map(esc).join('\n')}</div>`;
+    if(prev&&sm){
+      const ps=summarize(prev.rows||[]);
+      const g=ps?(sm.counting?sm.sum-ps.sum:sm.avg-ps.avg):null;
+      body+=`<div class="cmp">對照 <b>${md(prev.at)}</b> 那次${ps
+        ?` · ${sm.counting?'合計':'平均'} <b>${numFmt(sm.counting?ps.sum:ps.avg)}</b> → <b>${
+           numFmt(sm.counting?sm.sum:sm.avg)}</b>${g?` (${g>0?'+':''}${numFmt(g)})`:' (沒變)'}`
+        :''}</div>`;
+    }
+    body+=editRow(i);
+  }
+  return `<div class="item"><div class="bar ${macColor(i.mac)}"></div><div style="flex:1;min-width:0">
+    <div class="body" data-tap="${i.id}"><div class="meta">
+      <span class="tag kq">調查</span>${loc(i)}
+      ${i.dirty?'<span class="pin">待上傳</span>':''}<span class="stale">${md(i.at)}</span>
+    </div><div class="stitle">${esc(i.text)}</div>
+    <div class="dates"><span class="sum">${head}</span>${i.edited?` · 編輯 ${md(i.edited)}`:''}</div>
+    </div>${body}</div></div>`;
+}
+function group(v,keyFn,cardFn){
+  let html='',cur='';
+  for(const i of v){const g=keyFn(i);
+    if(g!==cur){cur=g; html+=`<div class="mhead">${g} <span>· ${v.filter(x=>keyFn(x)===g).length} 筆</span></div>`}
+    html+=cardFn(i)}
+  return html;
+}
+
+/* 篩選列用原生 select。Android 會跳出系統選單,選項又大又好按,
+   比自己刻一排 chip 更適合戴手套的場合,而且只吃一列高度。 */
+function renderFbar(){
+  const F=$('fbar');
+  if(fam==='專案'){F.style.display='none'; F.innerHTML=''; return}   // 專案沒有機台
+  F.style.display='flex';
+  // 沒選站別時,機台列出兩站的聯集(主線之類兩邊都有的只出現一次)
+  const macs=(flt.sta&&flt.sta!==NONE)?STATIONS[flt.sta]:ALL_MACS;
+  if(flt.mac&&flt.mac!==NONE&&!macs.includes(flt.mac)) flt.mac='';
+  const opt=(v,label,cur)=>`<option value="${esc(v)}"${v===cur?' selected':''}>${esc(label)}</option>`;
+  let h=`<select class="fsel${flt.sta?' on':''}" id="fSta">${
+      opt('','全部站別',flt.sta)}${STA.map(x=>opt(x,x,flt.sta)).join('')}${
+      opt(NONE,'未指定站別',flt.sta)}</select>`
+    +`<select class="fsel${flt.mac?' on':''}" id="fMac">${
+      opt('','全部機台',flt.mac)}${macs.map(x=>opt(x,x,flt.mac)).join('')}${
+      opt(NONE,'未指定機台',flt.mac)}</select>`;
+  if(fam==='待辦'&&sub==='已完成')
+    h+=`<select class="fsel${flt.cat?' on':''}" id="fCat">${
+      opt('','全部類別',flt.cat)}${FAM.待辦.cats.map(c=>opt(c,c,flt.cat)).join('')}</select>`;
+  if(fltOn()) h+=`<button class="fclr" id="fClr">清除</button>`;
+  F.innerHTML=h;
+  $('fSta').onchange=e=>{flt.sta=e.target.value; flt.mac=''; open=null; render()};
+  $('fMac').onchange=e=>{flt.mac=e.target.value; open=null; render()};
+  const fc=$('fCat'); if(fc) fc.onchange=e=>{flt.cat=e.target.value; open=null; render()};
+  const cl=$('fClr'); if(cl) cl.onclick=()=>{flt.sta=flt.mac=flt.cat=''; open=null; render()};
+}
+
+async function render(){
+  if(dragging) return;
+  all=await Data.list();
+  const pend=all.filter(i=>i.dirty).length+(await Store.all()).filter(i=>i.deleted&&i.dirty).length;
+  /* 同步列只在「有話要說」的時候出現。
+     一切正常時顯示「已同步」是零資訊,卻固定吃掉 43px——
+     那是半張卡片。沒出現本身就是「都上去了」的意思。 */
+  const sb=$('syncbar');
+  const msg=!Sync.online?(pend?`離線中 · ${pend} 筆待上傳`:'離線中 · 記錄照常')
+    :Sync.busy?'同步中…':pend?`未同步 ${pend} 筆`:'';
+  if(!msg&&!DEV){sb.style.display='none'; sb.innerHTML=''}
+  else{
+    sb.style.display='flex';
+    sb.className='syncbar '+(!Sync.online?'off':pend?'pend':'');
+    sb.innerHTML=`<span class="dot ${Sync.busy?'spin':''}"></span><span>${msg||'已同步'}</span>`
+      +(DEV?`<button class="netbtn" id="net">${Sync.online?'模擬斷線':'恢復連線'}</button>`:'');
+    if(DEV) $('net').onclick=e=>{e.stopPropagation();
+      Sync.online=!Sync.online; render(); if(Sync.online) Sync.push()};
+  }
+
+  const openN=all.filter(i=>i.family==='待辦'&&OPEN.includes(i.status)).length;
+  const N=$('nav');
+  N.innerHTML=['待辦','紀錄','專案','調查'].map(f=>{
+    const n=f==='待辦'?openN:all.filter(i=>i.family===f).length;
+    return `<div class="${f===fam?'on':''}" data-n="${f}" role="button">${f}<b>${n}</b></div>`}).join('');
+  N.onclick=e=>{const t=e.target.closest('[data-n]'); if(!t)return;
+    fam=t.dataset.n; sub=fam==='待辦'?(Cats.names()[0]||'工作'):'全部';   // 調查與專案不分頁
+    open=null; flt.cat=''; render()};
+
+  $('title').textContent=fam==='待辦'?'待辦':fam==='紀錄'?'紀錄'
+    :fam==='調查'?'調查紀錄':'改善專案';
+
+  // 已完成是跨類別的一覽,那排類別在這裡沒有意義,整排收掉
+  const F=$('filters'), hideTabs=fam==='專案'||fam==='調查'||(fam==='待辦'&&sub==='已完成');
+  if(hideTabs){F.innerHTML=''; F.style.display='none'}
+  else{F.style.display='flex';
+    // 計數跟著篩選走,不然數字跟你眼前的清單對不起來。類別篩選不算進去,否則變成自己數自己。
+    const scoped=applyFlt(all.filter(i=>i.family===fam),false);
+    const tabs=fam==='待辦'?[...FAM.待辦.cats]:['全部',...FAM.紀錄.cats];
+    F.innerHTML=tabs.map(o=>{
+      const n=fam==='待辦'?scoped.filter(i=>i.cat===o&&OPEN.includes(i.status)).length
+        :(o==='全部'?scoped.length:scoped.filter(i=>i.cat===o).length);
+      return `<div class="chip ${o===sub?'on':''}" data-f="${esc(o)}">${
+        o.replace('紀錄','')}${n?`<b>${n}</b>`:''}</div>`}).join('')
+      +(fam==='待辦'?'<div class="chip add" data-cats="1">＋ 類別</div>':'')}
+
+  const DB=$('donebtn');
+  if(fam==='待辦'){
+    const dn=applyFlt(all.filter(i=>i.family==='待辦'),false).filter(i=>i.status==='已完成').length;
+    DB.style.display='';
+    DB.className='donebtn'+(sub==='已完成'?' on':'');
+    DB.innerHTML='已完成'+(dn?`<b>${dn}</b>`:'');
+  }else DB.style.display='none';
+  renderFbar();
+
+  const C=$('count'), L=$('list');
+  if(fam==='待辦'){
+    const base=applyFlt(all.filter(i=>i.family==='待辦'));
+    if(sub==='已完成'){
+      // 已完成是自己一頁的一覽,不是掛在某類底下的附屬品。要縮小範圍就用上面的篩選。
+      const v=base.filter(i=>i.status==='已完成').sort((a,b)=>b.doneAt-a.doneAt);
+      C.textContent=`${v.length} 筆`;
+      L.innerHTML=v.length?group(v,i=>ym(i.doneAt),i=>cardTodo(i,open===i.id))
+        :`<div class="empty">${fltOn()?'這個範圍還沒有完成的項目。':'還沒有完成的項目。'}</div>`;
+      return}
+    /* 依 order 排。order 預設是 -created,所以沒手動排過的時候
+       就等於「新的在最上面」;長按拖曳之後才會蓋掉個別項目的值。 */
+    const v=base.filter(i=>i.cat===sub&&OPEN.includes(i.status)).sort((a,b)=>a.order-b.order);
+    // 逾期比停滯嚴重,有逾期就先講逾期
+    const over=v.filter(isOver).length;
+    const hot=v.filter(i=>i.ecd==null&&days(i.updated)>=7).length;
+    C.textContent=over?`未結 ${v.length} · 逾期 ${over}`
+      :hot?`未結 ${v.length} · 停滯 ${hot}`:`未結 ${v.length}`;
+    L.innerHTML=v.length?v.map(i=>cardTodo(i,open===i.id)).join('')
+      :`<div class="empty">${fltOn()
+        ?`這個範圍沒有未結的${sub}。`
+        :`沒有未結的${sub}。<br>按右下角記一筆。`}</div>`;
+    return}
+
+  if(fam==='紀錄'){
+    let v=applyFlt(all.filter(i=>i.family==='紀錄'));
+    if(sub!=='全部') v=v.filter(i=>i.cat===sub);
+    v.sort((a,b)=>b.at-a.at);
+    C.textContent=`${v.length} 筆`;
+    L.innerHTML=v.length?group(v,i=>ym(i.at),i=>cardLog(i,open===i.id))
+      :'<div class="empty">還沒有紀錄。</div>';
+    return}
+
+  if(fam==='調查'){
+    const v=applyFlt(all.filter(i=>i.family==='調查'),false).sort((a,b)=>b.at-a.at);
+    C.textContent=`${v.length} 份`;
+    L.innerHTML=v.length?group(v,i=>ym(i.at),i=>cardSurvey(i,open===i.id))
+      :`<div class="empty">${fltOn()?'這個範圍還沒有調查。'
+        :'還沒有調查紀錄。<br>抽風風速、損壞統計、打藥功率<br>這些都記在這裡。'}</div>`;
+    return}
+
+  const ps=all.filter(i=>i.family==='專案');
+  C.textContent=`${FAM.專案.cats.length} 個專案`;
+  L.innerHTML=FAM.專案.cats.map(p=>{
+    const us=ps.filter(i=>i.cat===p).sort((a,b)=>b.at-a.at);
+    const last=us[0]?days(us[0].at):null;
+    return `<div class="pcard"><h2>${p}</h2><div class="pmeta ${last!==null&&last>=14?'hot':''}">${
+      last===null?'尚無進度紀錄':`${us.length} 則更新 · 最近 ${last===0?'今天':`${last} 天前`}`}</div></div>`
+      +(us.map(i=>cardProj(i,open===i.id)).join('')||'<div class="empty" style="padding:16px">還沒有更新。</div>')}).join('');
+}
+
+function toast(m,act){
+  const t=$('toast'); t.textContent='';
+  t.appendChild(document.createTextNode(m));
+  if(act){const b=document.createElement('button'); b.textContent=act.label;
+    b.onclick=()=>{t.classList.remove('on'); clearTimeout(t._h); act.fn()};
+    t.appendChild(b)}
+  t.classList.add('on');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),act?4500:1600);
+}
+
+/* 這顆是切換,不是分頁:按第二下回到剛才那一類。
+   看完 archive 想回去繼續做事,不該還要自己找回原本在看哪一類。 */
+$('donebtn').onclick=()=>{
+  if(sub==='已完成'){
+    sub=Cats.names().includes(lastCat)?lastCat:(Cats.names()[0]||'工作');
+    flt.cat='';
+  }else{lastCat=sub; sub='已完成'}
+  open=null; render();
+};
+$('filters').onclick=e=>{
+  if(e.target.closest('[data-cats]')) return openCats();
+  const c=e.target.closest('[data-f]'); if(!c)return;
+  sub=c.dataset.f; open=null;
+  if(sub!=='已完成') flt.cat='';   // 類別篩選只在已完成那一覽裡有意義
+  render()};
+$('list').onclick=async e=>{
+  if(DG.blockClick) return;   // 拖完瀏覽器會補一個 click,別讓它去展開卡片
+  const a=e.target.closest('[data-a]');
+  if(a){
+    const {i:id,a:act}=a.dataset;
+    if(act==='edit'){const it=all.find(x=>x.id===id); if(it) openForm(it); return}
+    if(act==='del'){
+      await Data.remove(id); open=null; await render();
+      // 刪除只是標記,復原成本很低。戴手套誤觸的機率不低,不能沒有退路。
+      toast('已刪除',{label:'復原',fn:async()=>{
+        await Data.restore(id); await render(); toast('已復原'); Sync.push()}});
+    }else{
+      await Data.setStatus(id,act); open=null; await render();
+      toast(act==='已完成'?`完成於 ${md(Date.now())}`:'改為'+act);
+    }
+    Sync.push(); return}
+  const t=e.target.closest('[data-tap]');
+  if(t){const id=t.dataset.tap; open=open===id?null:id; render()}};
+
+/* ---- 新增 / 編輯視窗 ---- */
+function renderForm(){
+  const ed=!!form.id;
+  const cats=FAM[form.family].cats;
+  if(!cats.includes(form.cat)) form.cat=cats[0];
+  const macs=form.sta?STATIONS[form.sta]:ALL_MACS;
+  if(form.mac&&!macs.includes(form.mac)) form.mac='';   // 站別換了,機台不能留在不存在的組合
+  const sp=(k,v,label)=>`<span class="sp ${form[k]===v?'on':''}" data-k="${k}" data-v="${esc(v)}">${label}</span>`;
+  $('pCat').innerHTML=cats.map(c=>sp('cat',c,c.replace('紀錄',''))).join('');
+  $('pSta').innerHTML=sp('sta','','—')+STA.map(s=>sp('sta',s,s)).join('');
+  // 選機台時就看得到它是什麼顏色,不用回清單才對得起來
+  $('pMac').innerHTML=sp('mac','','—')
+    +macs.map(m=>sp('mac',m,`<span class="mdot ${macColor(m)}"></span>${esc(m)}`)).join('');
+  $('pEv').innerHTML=EVENTS.map(v=>sp('event',v,v)).join('');
+  $('rFx').style.display=isFx(form.family,form.cat)?'flex':'none';
+  const sv=form.family==='調查';
+  $('rDetail').style.display=sv?'':'none';
+  $('rEcd').style.display=form.family==='待辦'?'flex':'none';   // 只有待辦有到期日
+  // 調查沒有類別可選(只有一種),那一列藏起來,少一個要看的東西
+  $('pCat').parentNode.style.display=sv?'none':'flex';
+  const noun=form.family==='待辦'?'待辦':form.family==='紀錄'?'紀錄':sv?'調查':'進度';
+  $('mtitle').textContent=(ed?'編輯':'新增')+noun;
+  elTxt.placeholder=form.family==='待辦'?'要做什麼?':form.family==='紀錄'?'做了什麼?'
+    :sv?'在調查什麼?例:Ecu抽風風速統計':'進度是什麼?';
+  $('save').textContent=ed?'儲存':(form.family==='待辦'?'建立':'記錄');
+}
+function openForm(it){
+  if(it){
+    form.id=it.id; form.family=it.family; form.cat=it.cat; form.sta=it.sta;
+    form.mac=it.mac; form.code=it.code; form.event=it.event||EVENTS[0];
+    form.detail=it.detail||''; form.ecd=it.ecd??null;
+    elTxt.value=it.text; elCode.value=it.code; elDet.value=form.detail;
+    elEcd.value=ecdToInput(form.ecd);
+  }else{
+    form.id=null; form.family=fam;
+    form.cat=(fam!=='專案'&&FAM[fam].cats.includes(sub))?sub
+      :(fam==='待辦'&&FAM.待辦.cats.includes(lastCat)?lastCat:FAM[fam].cats[0]);
+    // 正在篩 ECU 主線,要記的多半也是那台。站別本來就延續上次選的。
+    if(flt.sta&&flt.sta!==NONE) form.sta=flt.sta;
+    form.mac=(flt.mac&&flt.mac!==NONE)?flt.mac:''; form.code=''; form.event=EVENTS[0];
+    form.detail=''; form.ecd=null;
+    elTxt.value=''; elCode.value=''; elDet.value=''; elEcd.value='';
+  }
+  elErr.classList.remove('on');
+  renderForm(); veil.classList.add('on');
+  setTimeout(()=>elTxt.focus(),180);
+}
+const close=()=>{elTxt.blur(); veil.classList.remove('on')};
+$('fab').onclick=()=>openForm(null);
+$('cancel').onclick=close;
+veil.onclick=e=>{if(e.target===veil) close()};
+document.querySelector('.optbox').onclick=e=>{
+  const el=e.target.closest('.sp'); if(!el)return;
+  form[el.dataset.k]=el.dataset.v; renderForm()};
+elTxt.oninput=()=>elErr.classList.remove('on');
+const fail=(m,el)=>{elErr.textContent=m; elErr.classList.add('on'); el.focus()};
+$('save').onclick=async()=>{
+  const t=elTxt.value.trim();
+  if(!t) return fail('先寫一下內容',elTxt);
+  form.detail=form.family==='調查'?elDet.value:'';
+  form.ecd=form.family==='待辦'?inputToEcd(elEcd.value):null;
+  const fx=isFx(form.family,form.cat);
+  if(fx){
+    // 編號一律轉大寫。b-13 和 B-13 若分成兩個個體,換下頻率就永遠算不出來。
+    form.code=elCode.value.trim().toUpperCase();
+    if(!form.code) return fail('掛籃/飛靶要填編號,日報才算得出換下頻率',elCode);
+  }else{form.code=''; form.event=''}
+
+  if(form.id){
+    await Data.update(form.id,{...form,text:t});
+    const id=form.id; close();
+    // 改了類別後別讓它從當前篩選裡消失
+    if(form.family==='待辦'&&sub!=='全部'&&sub!==form.cat) sub=form.cat;
+    open=id; await render(); toast('已更新');
+  }else{
+    await Data.add({...form,text:t});
+    close(); fam=form.family;
+    sub=(form.family==='專案'||form.family==='調查')?'全部':form.cat;
+    open=null; await render(); toast('記下了');
+  }
+  Sync.push();
+};
+
+/* ---- 長按拖曳排序 ----
+   手機沒有 HTML5 drag,而且長按會跟「捲動」和「點擊」兩件事同時打架,所以自己接 touch:
+
+   - 按住不動 450ms 才進入拖曳,並且震一下告訴使用者「可以拖了」
+   - 這 450ms 內手指移動超過 10px 就當成在捲動,直接放棄
+   - 進入拖曳之後才 preventDefault。太早擋會把正常捲動也吃掉;
+     太晚擋則瀏覽器已經開始捲了,擋不住。壓在「按住不動」這個時間點剛好
+
+   座標一律換算成清單的內容座標(不是畫面座標),這樣邊緣自動捲動的時候
+   卡片還是會乖乖跟著手指,不會因為捲了而跑掉。 */
+const LIST=$('list');
+const DG={id:null,el:null,timer:null,on:false,base:0,y0:0,lastY:null,
+          slots:null,from:0,to:0,edge:0,raf:0,blockClick:false};
+const canDrag=()=>fam==='待辦'&&sub!=='已完成';
+const contentY=e=>{
+  const t=e.touches&&e.touches[0]?e.touches[0]:e;
+  return t.clientY-LIST.getBoundingClientRect().top+LIST.scrollTop;
+};
+function dgClear(){
+  clearTimeout(DG.timer); cancelAnimationFrame(DG.raf);
+  if(DG.el){DG.el.classList.remove('dragging'); DG.el.style.transform=''}
+  const l=$('dropline'); if(l) l.remove();
+  DG.id=null; DG.el=null; DG.on=false; DG.slots=null; DG.edge=0; DG.lastY=null;
+  dragging=false;
+}
+function dgEnter(){
+  if(!DG.el||!DG.el.isConnected) return dgClear();
+  DG.on=true; dragging=true;
+  if(navigator.vibrate){try{navigator.vibrate(25)}catch(_){}}
+  DG.slots=[...LIST.querySelectorAll('[data-did]')]
+    .map(el=>({el,id:el.dataset.did,top:el.offsetTop,h:el.offsetHeight}));
+  DG.from=DG.slots.findIndex(x=>x.id===DG.id);
+  if(DG.from<0) return dgClear();
+  DG.to=DG.from; DG.lastY=DG.base;
+  DG.el.classList.add('dragging');
+  dgLine();
+  DG.raf=requestAnimationFrame(dgTick);
+}
+// 拖到清單上下緣時自動捲動。長清單若不會自動捲,就只能在同一個畫面裡搬,等於沒用
+function dgTick(){
+  if(!DG.on) return;
+  if(DG.edge&&DG.lastY!=null){
+    const before=LIST.scrollTop;
+    LIST.scrollTop+=DG.edge;
+    if(LIST.scrollTop!==before){DG.lastY+=LIST.scrollTop-before; dgPlace(DG.lastY)}
+  }
+  DG.raf=requestAnimationFrame(dgTick);
+}
+function dgPlace(y){
+  DG.el.style.transform=`translateY(${y-DG.base}px)`;
+  const me=DG.slots[DG.from];
+  const c=me.top+me.h/2+(y-DG.base);
+  let to=DG.slots.length-1;
+  for(let k=0;k<DG.slots.length;k++){
+    const s=DG.slots[k];
+    if(c<s.top+s.h/2){to=k;break}
+  }
+  if(to!==DG.to){DG.to=to; dgLine()}
+}
+/* 用一條線標出「放開會落在哪」,不去推擠其他卡片。
+   卡片高度不一(內容有長有短),推擠的位移算起來一定會歪;一條線永遠是準的。 */
+function dgLine(){
+  let l=$('dropline');
+  if(!l){l=document.createElement('div'); l.id='dropline'; l.className='dropline'; LIST.appendChild(l)}
+  const s=DG.slots[DG.to];
+  l.style.top=(DG.to<=DG.from?s.top-5:s.top+s.h+3)+'px';
+}
+LIST.addEventListener('touchstart',e=>{
+  if(!canDrag()||e.touches.length!==1) return;
+  const el=e.target.closest('[data-did]'); if(!el) return;
+  dgClear();
+  DG.el=el; DG.id=el.dataset.did;
+  DG.y0=e.touches[0].clientY; DG.base=contentY(e);
+  DG.timer=setTimeout(dgEnter,450);
+},{passive:true});
+LIST.addEventListener('touchmove',e=>{
+  if(!DG.el) return;
+  if(!DG.on){
+    if(Math.abs(e.touches[0].clientY-DG.y0)>10) dgClear();   // 是在捲動,不是要拖
+    return;
+  }
+  e.preventDefault();
+  const r=LIST.getBoundingClientRect(), cy=e.touches[0].clientY;
+  DG.edge=cy<r.top+70?-9:cy>r.bottom-70?9:0;
+  DG.lastY=contentY(e);
+  dgPlace(DG.lastY);
+},{passive:false});
+LIST.addEventListener('touchend',async()=>{
+  if(!DG.el) return;
+  if(!DG.on){dgClear(); return}
+  const id=DG.id, from=DG.from, to=DG.to, ids=DG.slots.map(x=>x.id);
+  DG.blockClick=true; setTimeout(()=>{DG.blockClick=false},400);
+  dgClear();
+  if(to!==from){await Data.reorder(id,ids,from,to); await render(); Sync.push()}
+},{passive:true});
+LIST.addEventListener('touchcancel',dgClear,{passive:true});
+
+/* ---- 類別管理 ---- */
+let catDel=null;
+const cveil=$('cveil');
+const cfail=m=>{$('cerr').textContent=m; $('cerr').classList.add('on')};
+
+function renderCats(){
+  // 計數含已完成的,刪類別前你要知道的是「這一類總共牽連幾筆」
+  const cnt={};
+  for(const i of all) if(i.family==='待辦') cnt[i.cat]=(cnt[i.cat]||0)+1;
+  $('clist').innerHTML=Cats.list.map(c=>{
+    const k=cnt[c.name]||0;
+    if(catDel!==c.name)
+      return `<div class="citem"><span class="cdot ${c.c}"></span><b>${esc(c.name)}</b>
+        <span class="cn">${k} 筆</span>
+        <button class="cx" data-del="${esc(c.name)}">刪除</button></div>`;
+    const others=Cats.names().filter(x=>x!==c.name);
+    /* 有東西在裡面就不能直接刪。
+       直接刪的話那些卡片會變成沒有分頁認領它,看起來像被刪掉了,
+       其實還躺在資料庫裡——比真的刪掉更糟。所以一定要先指定搬去哪。 */
+    return `<div class="citem warn">
+      <div class="cask">${k
+        ?`「${esc(c.name)}」底下還有 <b>${k}</b> 筆(含已完成的)。<br>要把它們移到哪一類?`
+        :`確定要刪掉「${esc(c.name)}」?`}</div>
+      <div class="cbtns">${k
+        ?others.map(o=>`<button class="cmv" data-mv="${esc(o)}">${esc(o)}</button>`).join('')
+        :'<button class="cmv" data-mv="">刪除</button>'}
+        <button class="cx" data-cx="1">取消</button></div></div>`;
+  }).join('');
+}
+function openCats(){
+  catDel=null; $('cnew').value=''; $('cerr').classList.remove('on');
+  renderCats(); cveil.classList.add('on');
+}
+const closeCats=()=>{catDel=null; cveil.classList.remove('on')};
+$('cclose').onclick=closeCats;
+cveil.onclick=e=>{if(e.target===cveil) closeCats()};
+$('ecdClr').onclick=()=>{elEcd.value=''; form.ecd=null};
+$('cnew').oninput=()=>$('cerr').classList.remove('on');
+$('cadd').onclick=async()=>{
+  const err=await Cats.add($('cnew').value);
+  if(err) return cfail(err);
+  const name=$('cnew').value.trim();
+  $('cnew').value=''; $('cerr').classList.remove('on');
+  await render(); renderCats(); toast(`加了「${name}」`);
+};
+$('clist').onclick=async e=>{
+  const d=e.target.closest('[data-del]');
+  if(d){catDel=d.dataset.del; $('cerr').classList.remove('on'); return renderCats()}
+  if(e.target.closest('[data-cx]')){catDel=null; return renderCats()}
+  const mv=e.target.closest('[data-mv]');
+  if(!mv) return;
+  const from=catDel, to=mv.dataset.mv;
+  const moved=to?await Data.moveCat(from,to):0;
+  const err=await Cats.remove(from);
+  catDel=null;
+  if(err){$('cerr').textContent=err; $('cerr').classList.add('on'); return renderCats()}
+  if(sub===from) sub=Cats.names()[0];   // 站在被刪的那頁上,要有地方可去
+  if(flt.cat===from) flt.cat='';
+  await render(); renderCats();
+  toast(moved?`${moved} 筆移到「${to}」,已刪除「${from}」`:`已刪除「${from}」`);
+  Sync.push();
+};
+
+/* ---- Service Worker(file:// 開啟時註冊不了,靜靜跳過) ---- */
+if('serviceWorker'in navigator&&location.protocol.startsWith('http')){
+  addEventListener('load',()=>{
+    const had=!!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(had) toast('已更新,下次開啟生效');   // 不自動重載,免得打字打一半被吃掉
+    });
+  });
+}
+
+/* ---- 起動 ---- */
+(async()=>{
+  await Store.init();
+  // 示範資料只在網址帶 ?demo 時灌。正式用是空的開始。
+  if(new URLSearchParams(location.search).has('demo')&&!(await Store.all()).length){
+    const S=[
+      ['待辦','工作','ECU','主線','','','過濾幫浦異音,已報修等廠商回覆','未處理',14,11,null],
+      ['待辦','工作','EPG','Plasma','','','腔體壓力偏低,需校正','未處理',6,6,null],
+      ['待辦','工作','ECU','敘豐A part','','','天車定位偏移,下線時再調','未處理',4,4,null],
+      ['待辦','工作','EPG','Xray','','','影像對位漂移,已重新校正觀察中','未處理',3,3,null],
+      ['待辦','工作','ECU','EFEM投板','','','吸嘴真空不穩,偶發取放失敗','未處理',1,1,null],
+      ['待辦','領料','ECU','主線','','','幫浦機械軸封已到貨,待去倉庫領','未處理',9,9,null],
+      ['待辦','領料','EPG','敘豐B part','','','加熱器保險絲 × 10','未處理',2,2,null],
+      ['待辦','請購','EPG','','','','PVC 三通接頭 1 吋 × 20','未處理',11,11,null],
+      ['待辦','請購','ECU','IPQC','','','量測治具校正片 × 2','未處理',5,5,null],
+      ['待辦','工作','EPG','EFEM收板','','','排風機異音,已更換軸承','已完成',12,2,2],
+      ['待辦','領料','ECU','敘豐B part','','','過濾濾芯 5 微米 × 12','已完成',20,8,8],
+      ['待辦','工作','ECU','IPQC','','','量測台水平校正','已完成',33,26,26],
+      ['待辦','工作','EPG','敘豐前處理','','','噴淋管路阻塞,已通洗','已完成',41,38,38],
+      ['待辦','請購','ECU','主線','','','幫浦機械軸封 × 2','已完成',26,14,14],
+      ['待辦','請購','EPG','Plasma','','','O-ring 氟橡膠 × 20','已完成',45,40,40],
+      ['待辦','領料','EPG','IPQC','','','校正砝碼組','已完成',37,31,31],
+      ['紀錄','保養紀錄','ECU','主線','','','前置濾芯更換,槽液外觀正常','—',5,5,null],
+      ['紀錄','保養紀錄','EPG','Plasma','','','腔體清潔與 O-ring 更換','—',12,12,null],
+      ['紀錄','更換備品紀錄','ECU','敘豐A part','','','天車導輪 × 2,原廠件','—',8,8,null],
+      ['紀錄','掛籃紀錄','ECU','主線','B-13','異常換下','槽內結晶嚴重,提前換下送洗','—',2,2,null],
+      ['紀錄','飛靶紀錄','EPG','敘豐B part','T-07','定期換下','使用 31 天,依週期換下','—',6,6,null],
+      ['專案','化銅線漏液改善追蹤','ECU','','','','第三槽接頭全數改為法蘭式,觀察兩週未再滲漏','—',9,9,null],
+      ['專案','鎳鈀金線漏液改善追蹤','EPG','','','','加裝洩漏偵測感測器,已完成配線待測試','—',18,18,null]
+    ];
+    for(const [family,cat,sta,mac,code,event,text,status,cd,ud,dd] of S){
+      const c=today-cd*DAY, ev=[{at:c,to:'建立'}];
+      if(family==='待辦'&&status!=='未處理') ev.push({at:today-ud*DAY,to:status});
+      await Store.put({id:newId(),family,cat,sta,mac,code,event,text,status,created:c,
+        updated:today-ud*DAY,at:today-ud*DAY,edited:null,doneAt:dd===null?null:today-dd*DAY,
+        events:ev,deleted:false,dirty:false});
+    }
+  }
+  /* ?import 匯入同目錄的 import.json(ColorNote 轉過來的那批)。
+     id 是由來源檔與行號決定的,所以重跑一次不會變成兩筆,
+     也不會蓋掉你匯入之後在上面改的東西——已經存在的一律跳過。 */
+  /* 把 items 灌進來。id 是由來源決定的,所以重跑不會變成兩筆,
+     也不會蓋掉匯入之後你在上面改的東西——已經存在的一律跳過。 */
+  async function ingest(data){
+    const have=new Set((await Store.all()).map(x=>x.id));
+    let add=0, skip=0;
+    for(const it of (data&&data.items)||[]){
+      if(!it||!it.id){continue}
+      if(have.has(it.id)){skip++; continue}
+      await Store.put(it); add++;
+    }
+    await Cats.reconcile(await Store.all());
+    return add?`匯入 ${add} 筆${skip?`,${skip} 筆已存在`:''}`:'沒有新資料要匯入';
+  }
+
+  let imported='';
+  if(new URLSearchParams(location.search).has('import')){
+    /* 先試同目錄的 import.json;抓不到就跳出檔案選擇器讓使用者自己挑。
+       部署到 GitHub Pages 之後那個 repo 是公開的,廠內的維修內容、廠商與同事姓名
+       都不該推上去,所以資料檔刻意不進版控——改成從手機本機挑一次。 */
+    try{
+      const res=await fetch('./import.json',{cache:'no-store'});
+      if(!res.ok) throw new Error('no file');
+      imported=await ingest(await res.json());
+    }catch(_){
+      const inp=$('impFile');
+      inp.onchange=async()=>{
+        const f=inp.files&&inp.files[0]; if(!f) return;
+        try{
+          const msg=await ingest(JSON.parse(await f.text()));
+          await render(); toast(msg);
+        }catch(e){toast('匯入失敗:'+e.message)}
+        inp.value='';
+      };
+      imported='選一個 import.json 檔';
+      setTimeout(()=>inp.click(),600);
+    }
+  }
+
+  await Cats.reconcile(await Store.all());
+  if(!Cats.names().includes(sub)) sub=Cats.names()[0]||'工作';
+  await render();
+  if(imported) toast(imported);
+})();
+</script>
+</body>
+</html>
