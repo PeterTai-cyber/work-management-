@@ -306,6 +306,15 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
     </div>
   </div>
   <input type="file" id="impFile" accept="application/json,.json" style="display:none">
+  <div class="veil" id="iveil">
+    <div class="modal">
+      <div class="mtitle">匯入資料</div>
+      <div class="dhint" id="imsg">選一個 <b>import.json</b> 檔案。<br>
+        已經在裡面的項目會自動跳過,重複匯入不會變成兩筆。</div>
+      <div class="srow"><button id="iclose">取消</button>
+        <button class="save" id="ipick">選擇檔案</button></div>
+    </div>
+  </div>
   <div class="toast" id="toast"></div>
 </div>
 
@@ -1233,25 +1242,36 @@ if('serviceWorker'in navigator&&location.protocol.startsWith('http')){
 
   let imported='';
   if(new URLSearchParams(location.search).has('import')){
-    /* 先試同目錄的 import.json;抓不到就跳出檔案選擇器讓使用者自己挑。
-       部署到 GitHub Pages 之後那個 repo 是公開的,廠內的維修內容、廠商與同事姓名
-       都不該推上去,所以資料檔刻意不進版控——改成從手機本機挑一次。 */
+    /* 先試同目錄的 import.json(區網測試時檔案就在旁邊)。
+       抓不到就跳一個視窗請使用者自己挑——部署到 GitHub Pages 之後 repo 是公開的,
+       廠內的維修內容、廠商與同事姓名都不該推上去,所以資料檔刻意不進版控。
+
+       檔案選擇器**只能由使用者的實際點擊叫出來**。
+       瀏覽器會擋掉程式自己呼叫的 input.click(),而且靜靜地擋、不報錯,
+       所以一定要有一顆看得見的按鈕,不能在載入時自動彈。 */
+    const inp=$('impFile'), iveil=$('iveil');
+    inp.onchange=async()=>{
+      const f=inp.files&&inp.files[0];
+      inp.value='';
+      if(!f) return;
+      try{
+        const msg=await ingest(JSON.parse(await f.text()));
+        iveil.classList.remove('on');
+        await render(); toast(msg);
+      }catch(e){
+        $('imsg').innerHTML='讀不進去:'+esc(e.message)+'<br>確認挑到的是 import.json。';
+      }
+    };
+    $('ipick').onclick=()=>inp.click();          // 這一下是真的使用者手勢,選擇器才叫得出來
+    $('iclose').onclick=()=>iveil.classList.remove('on');
+    iveil.onclick=e=>{if(e.target===iveil) iveil.classList.remove('on')};
+
     try{
       const res=await fetch('./import.json',{cache:'no-store'});
       if(!res.ok) throw new Error('no file');
       imported=await ingest(await res.json());
     }catch(_){
-      const inp=$('impFile');
-      inp.onchange=async()=>{
-        const f=inp.files&&inp.files[0]; if(!f) return;
-        try{
-          const msg=await ingest(JSON.parse(await f.text()));
-          await render(); toast(msg);
-        }catch(e){toast('匯入失敗:'+e.message)}
-        inp.value='';
-      };
-      imported='選一個 import.json 檔';
-      setTimeout(()=>inp.click(),600);
+      iveil.classList.add('on');
     }
   }
 

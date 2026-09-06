@@ -1,7 +1,7 @@
 /* 工作管理助手 — Service Worker
    只負責讓 app 外殼離線可開啟。資料一律在 IndexedDB,這裡不碰。
    改版時把 CACHE 的版本號往上加,舊快取會在 activate 時清掉。 */
-const CACHE = 'workmate-shell-v1';
+const CACHE = 'workmate-shell-v2';
 const SHELL = [
   './',
   './index.html',
