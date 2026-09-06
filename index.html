@@ -58,6 +58,9 @@ h1{margin:0;font-size:19px;font-weight:700;letter-spacing:-.01em}
   cursor:pointer;white-space:nowrap}
 .donebtn b{margin-left:4px;font-variant-numeric:tabular-nums;opacity:.75}
 .donebtn.on{background:#485752;border-color:#485752;color:#fff}
+.morebtn{margin-left:8px;width:30px;height:26px;padding:0;border:1px solid #DCE2DE;
+  border-radius:7px;background:#F1F4F1;color:#65726E;font-family:inherit;font-size:15px;
+  font-weight:700;line-height:1;cursor:pointer}
 .chip b{font-weight:700;font-variant-numeric:tabular-nums;opacity:.7;margin-left:3px}
 main{flex:1;overflow-y:auto;padding:0 12px 84px;position:relative}
 .item.dragging{box-shadow:0 10px 26px rgba(14,22,20,.3);position:relative;z-index:3;
@@ -126,6 +129,16 @@ main{flex:1;overflow-y:auto;padding:0 12px 84px;position:relative}
   line-height:1.65;background:var(--card);color:var(--ink);resize:vertical;min-height:118px}
 #detail:focus{outline:1px solid var(--teal)}
 #rDetail{margin-bottom:12px}
+.dstat{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:9px;
+  font-variant-numeric:tabular-nums}
+.dwarn{font-size:13px;line-height:1.65;color:#7A5510;background:#FBF4E6;
+  border:1px solid #E4D3AE;border-radius:8px;padding:10px 11px;margin-bottom:10px}
+.dwarn strong{font-weight:800;color:#5E410C}
+.drow2{display:flex;gap:8px;margin-bottom:4px}
+.drow2 button{flex:1;padding:14px 6px;border-radius:9px;font-size:15px;font-weight:700;
+  cursor:pointer;font-family:inherit;border:1px solid var(--line);
+  background:var(--card);color:var(--ink)}
+.drow2 button.save{background:var(--teal);border-color:var(--teal);color:#fff}
 .dhint{font-size:12px;color:var(--mute);line-height:1.6;margin:0 0 6px}
 .dhint b{color:#3B4A46;font-weight:700}
 .loc{font-size:12px;font-weight:600;color:#3E4D49;letter-spacing:.01em}
@@ -265,7 +278,8 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
     <header>
       <div class="hrow"><h1 id="title"></h1>
         <button class="donebtn" id="donebtn">已完成</button>
-        <span class="count" id="count"></span></div>
+        <span class="count" id="count"></span>
+        <button class="morebtn" id="morebtn" aria-label="資料">⋯</button></div>
       <div class="syncbar" id="syncbar"></div>
       <div class="filters" id="filters"></div>
       <div class="fbar" id="fbar"></div>
@@ -308,11 +322,16 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
   <input type="file" id="impFile" accept="application/json,.json" style="display:none">
   <div class="veil" id="iveil">
     <div class="modal">
-      <div class="mtitle">匯入資料</div>
-      <div class="dhint" id="imsg">選一個 <b>import.json</b> 檔案。<br>
-        已經在裡面的項目會自動跳過,重複匯入不會變成兩筆。</div>
-      <div class="srow"><button id="iclose">取消</button>
-        <button class="save" id="ipick">選擇檔案</button></div>
+      <div class="mtitle">資料備份</div>
+      <div class="dstat" id="dstat"></div>
+      <div class="dwarn">資料只存在這支手機裡,還沒有雲端。<br>
+        清除瀏覽器資料、換手機、手機壞掉都會全部不見——<strong>定期匯出一份存起來。</strong></div>
+      <div class="dhint" id="imsg">匯入時已經在裡面的項目會自動跳過,重複匯入不會變成兩筆。</div>
+      <div class="drow2">
+        <button class="save" id="iexp">匯出備份</button>
+        <button id="ipick">匯入檔案</button>
+      </div>
+      <div class="srow"><button id="iclose" style="flex:1">關閉</button></div>
     </div>
   </div>
   <div class="toast" id="toast"></div>
@@ -1111,6 +1130,73 @@ LIST.addEventListener('touchend',async()=>{
 },{passive:true});
 LIST.addEventListener('touchcancel',dgClear,{passive:true});
 
+/* ---- 資料備份 ----
+   後端還沒接,所有東西只在這支手機的 IndexedDB 裡。
+   在真的有雲端之前,匯出是唯一的安全網,所以它必須是介面上找得到的功能,
+   不能只藏在網址參數裡。 */
+const iveil=$('iveil'), impFile=$('impFile');
+
+async function ingest(data){
+  const have=new Set((await Store.all()).map(x=>x.id));
+  let add=0, skip=0;
+  for(const it of (data&&data.items)||[]){
+    if(!it||!it.id) continue;
+    if(have.has(it.id)){skip++; continue}
+    await Store.put(it); add++;
+  }
+  // 備份檔裡帶著自訂類別就一起還原,不然那些卡片會找不到自己的分頁
+  if(Array.isArray(data&&data.cats))
+    for(const c of data.cats)
+      if(c&&c.name&&!Cats.names().includes(c.name)) await Cats.add(c.name);
+  await Cats.reconcile(await Store.all());
+  return add?`匯入 ${add} 筆${skip?`,${skip} 筆已存在`:''}`:'沒有新資料要匯入';
+}
+
+async function exportAll(){
+  // 連墓碑一起匯出。還原時要能知道「這筆是被刪掉的」,不然刪掉的東西會復活
+  const items=await Store.all();
+  const d=new Date();
+  const stamp=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  const blob=new Blob([JSON.stringify({source:'工作管理助手',builtAt:d.toISOString(),
+    cats:Cats.list,items},null,1)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`workmate-${stamp}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+  return items.length;
+}
+
+async function openData(){
+  const items=await Store.all();
+  const live=items.filter(i=>!i.deleted).length;
+  const pend=items.filter(i=>i.dirty).length;
+  $('dstat').textContent=`目前 ${live} 筆` + (pend?` · ${pend} 筆還沒上傳`:'');
+  $('imsg').textContent='匯入時已經在裡面的項目會自動跳過,重複匯入不會變成兩筆。';
+  iveil.classList.add('on');
+}
+$('morebtn').onclick=openData;
+$('iclose').onclick=()=>iveil.classList.remove('on');
+iveil.onclick=e=>{if(e.target===iveil) iveil.classList.remove('on')};
+$('iexp').onclick=async()=>{
+  try{const n=await exportAll(); iveil.classList.remove('on'); toast(`已匯出 ${n} 筆`)}
+  catch(e){$('imsg').textContent='匯出失敗:'+e.message}
+};
+/* 檔案選擇器只能由使用者的實際點擊叫出來。
+   程式自己呼叫 input.click() 會被瀏覽器靜靜擋掉、不報錯,
+   所以一定要有一顆看得見的按鈕。 */
+$('ipick').onclick=()=>impFile.click();
+impFile.onchange=async()=>{
+  const f=impFile.files&&impFile.files[0];
+  impFile.value='';
+  if(!f) return;
+  try{
+    const msg=await ingest(JSON.parse(await f.text()));
+    iveil.classList.remove('on');
+    await render(); toast(msg); Sync.push();
+  }catch(e){$('imsg').textContent='讀不進去:'+e.message+' — 確認挑到的是備份的 json 檔。'}
+};
+
 /* ---- 類別管理 ---- */
 let catDel=null;
 const cveil=$('cveil');
@@ -1223,56 +1309,14 @@ if('serviceWorker'in navigator&&location.protocol.startsWith('http')){
         events:ev,deleted:false,dirty:false});
     }
   }
-  /* ?import 匯入同目錄的 import.json(ColorNote 轉過來的那批)。
-     id 是由來源檔與行號決定的,所以重跑一次不會變成兩筆,
-     也不會蓋掉你匯入之後在上面改的東西——已經存在的一律跳過。 */
-  /* 把 items 灌進來。id 是由來源決定的,所以重跑不會變成兩筆,
-     也不會蓋掉匯入之後你在上面改的東西——已經存在的一律跳過。 */
-  async function ingest(data){
-    const have=new Set((await Store.all()).map(x=>x.id));
-    let add=0, skip=0;
-    for(const it of (data&&data.items)||[]){
-      if(!it||!it.id){continue}
-      if(have.has(it.id)){skip++; continue}
-      await Store.put(it); add++;
-    }
-    await Cats.reconcile(await Store.all());
-    return add?`匯入 ${add} 筆${skip?`,${skip} 筆已存在`:''}`:'沒有新資料要匯入';
-  }
-
+  // ?import:區網測試時 import.json 就在旁邊,直接吃掉;抓不到就把資料視窗打開讓人挑檔案
   let imported='';
   if(new URLSearchParams(location.search).has('import')){
-    /* 先試同目錄的 import.json(區網測試時檔案就在旁邊)。
-       抓不到就跳一個視窗請使用者自己挑——部署到 GitHub Pages 之後 repo 是公開的,
-       廠內的維修內容、廠商與同事姓名都不該推上去,所以資料檔刻意不進版控。
-
-       檔案選擇器**只能由使用者的實際點擊叫出來**。
-       瀏覽器會擋掉程式自己呼叫的 input.click(),而且靜靜地擋、不報錯,
-       所以一定要有一顆看得見的按鈕,不能在載入時自動彈。 */
-    const inp=$('impFile'), iveil=$('iveil');
-    inp.onchange=async()=>{
-      const f=inp.files&&inp.files[0];
-      inp.value='';
-      if(!f) return;
-      try{
-        const msg=await ingest(JSON.parse(await f.text()));
-        iveil.classList.remove('on');
-        await render(); toast(msg);
-      }catch(e){
-        $('imsg').innerHTML='讀不進去:'+esc(e.message)+'<br>確認挑到的是 import.json。';
-      }
-    };
-    $('ipick').onclick=()=>inp.click();          // 這一下是真的使用者手勢,選擇器才叫得出來
-    $('iclose').onclick=()=>iveil.classList.remove('on');
-    iveil.onclick=e=>{if(e.target===iveil) iveil.classList.remove('on')};
-
     try{
       const res=await fetch('./import.json',{cache:'no-store'});
       if(!res.ok) throw new Error('no file');
       imported=await ingest(await res.json());
-    }catch(_){
-      iveil.classList.add('on');
-    }
+    }catch(_){ await openData() }
   }
 
   await Cats.reconcile(await Store.all());
