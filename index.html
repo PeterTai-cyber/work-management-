@@ -281,17 +281,109 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
 .fxacts .act{padding:12px 2px}
 .hist .ev .evs{font-weight:700;color:#3B4A46;min-width:44px}
 .hist .ev span:last-child{color:var(--ink)}
-/* ===== 保養 ===== */
-.ptitle{font-size:16px;font-weight:800;line-height:1.35}
-.subs{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
-.subt{font-size:12.5px;font-weight:600;padding:2px 9px;border-radius:999px;background:#E4EBE8;color:#2C403B}
-.pnote{margin-top:4px;font-size:14px;color:#4A5753;white-space:pre-wrap;word-break:break-word}
-.pmsum{margin:8px 2px 4px}
-.pmrow{display:flex;justify-content:space-between;gap:10px;padding:7px 2px;border-bottom:1px solid #E6E9E6;font-size:14px}
-.pmrow span:last-child{color:var(--mute);font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.pmrow .near{color:var(--amber)!important;font-weight:700}
-.pmrow .over{color:var(--rust)!important;font-weight:700}
-.pmrow .none{color:#B4BDB9!important}
+/* ===== 紀錄首頁:區塊 =====
+   點下面的「紀錄」先看到區塊,每塊上面直接寫重點(待處理幾支、超過週期幾項),
+   不用點進去就知道哪裡要處理。點一塊,所有區塊縮成上方一排,下面展開那一類。 */
+.rboard{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:104px;gap:10px;grid-auto-flow:row dense;padding-top:4px}
+.rtile{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer;
+  overflow:hidden;display:flex;flex-direction:column;gap:3px;transform-origin:0 0;min-width:0}
+.rtile.S{grid-column:span 1;grid-row:span 1}
+.rtile.M{grid-column:span 2;grid-row:span 1}
+.rtile.L{grid-column:span 2;grid-row:span 2}
+.rtile.add{grid-column:span 2;grid-row:span 1;border-style:dashed;align-items:center;justify-content:center;
+  color:#8A948F;font-weight:700;font-size:15px;height:56px;align-self:start;background:transparent}
+.rname{font-size:16px;font-weight:800;display:flex;align-items:center;gap:7px;min-width:0}
+.rname i{width:10px;height:10px;border-radius:3px;flex:0 0 10px}
+.rbadge{font-size:12px;font-weight:800;padding:0 7px;border-radius:999px;background:var(--rust);color:#fff;line-height:18px}
+.rbig{font-size:28px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums}
+.rbig small{font-size:13px;font-weight:600;color:var(--mute);margin-left:4px}
+.rbig.hot{color:#B02D2D}
+.rline{font-size:13px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rline b{color:var(--ink);font-weight:700}
+.rmore{display:none;flex-direction:column;gap:2px;margin-top:4px}
+.L .rmore{display:flex}
+.S .rline+.rline{display:none}
+.wrow{display:flex;justify-content:space-between;gap:8px;font-size:13.5px;padding:3px 0;border-top:1px solid #EEF1EE}
+.wrow span:last-child{color:#B02D2D;font-weight:700;white-space:nowrap}
+/* 調整模式:不晃動(晃動的按鈕戴手套按不準),改成穩定的虛線框 */
+.rboard.editing .rtile:not(.add){border:2px dashed var(--teal);cursor:default}
+.sizer,.mvs{display:none}
+.editing .sizer{display:flex;position:absolute;left:8px;right:8px;bottom:8px;gap:4px;background:var(--shell);
+  border:1px solid var(--line);border-radius:10px;padding:4px}
+.sizer button{flex:1;min-width:0;height:36px;border:0;border-radius:7px;background:transparent;font-family:inherit;font-size:14px;
+  font-weight:700;color:var(--mute);cursor:pointer;padding:0}
+.sizer button.on{background:var(--ink);color:#fff}
+.editing .mvs{display:flex;position:absolute;top:8px;right:8px;gap:4px}
+.mvs button{width:36px;height:32px;border:1px solid var(--line);border-radius:8px;background:var(--shell);font-family:inherit;
+  font-size:16px;font-weight:700;color:var(--ink);cursor:pointer;padding:0}
+.mvs button:disabled{opacity:.3}
+.obtn{display:block;width:100%;margin-top:12px;padding:13px;border:1px solid var(--line);border-radius:10px;background:var(--card);
+  font-family:inherit;font-size:15px;font-weight:700;color:var(--teal);cursor:pointer}
+.chip i.cd{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:0}
+.chip b.rb{background:var(--rust);color:#fff;opacity:1;padding:0 6px;border-radius:999px;margin-left:5px;font-size:12px}
+.chip.on b.rb{background:#fff;color:var(--ink)}
+.backbtn{flex:0 0 auto;margin-right:8px;height:32px;padding:0 11px 0 8px;border:1px solid var(--line);border-radius:8px;
+  background:var(--card);font-family:inherit;font-size:14px;font-weight:700;color:var(--ink);cursor:pointer;align-self:center}
+#list.enter>*{animation:enter .3s cubic-bezier(.2,.8,.2,1)}
+@keyframes enter{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#list.enter>*{animation:none}}
+
+/* ===== 分大項:大項區塊 ===== */
+.mboard{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-top:4px}
+.mtile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 13px;cursor:pointer;display:flex;
+  flex-direction:column;gap:2px;transform-origin:0 0;min-width:0;min-height:118px}
+.mtile.over{border-color:#E3B9B4;background:#FFFBFA}
+.mtile.add{border-style:dashed;align-items:center;justify-content:center;color:#8A948F;font-weight:700;font-size:15px;background:transparent}
+.mtile .mn{font-size:16px;font-weight:800;line-height:1.3}
+.mtile .ago{font-size:28px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums;margin-top:2px}
+.mtile .ago small{font-size:13px;font-weight:600;color:var(--mute);margin-left:3px}
+.mtile .ago.none{font-size:15px;color:#A6B0AC;font-weight:700;padding:8px 0 2px}
+.mtile .ml{font-size:12.5px;color:var(--mute);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cyp{align-self:flex-start;font-size:12px;font-weight:800;padding:2px 8px;border-radius:999px;margin-top:4px}
+.cyp.over{background:#B02D2D;color:#fff}
+.cyp.near{background:#F6EEDC;color:#6E5410}
+.cyp.ok{background:#E9EDEA;color:var(--mute)}
+
+/* ===== 分大項:時間軸 =====
+   保養的重點是時間:日期用大字放左邊,兩筆之間標「相隔幾天」,
+   比只看日期更看得出是不是做得太頻繁、或拖太久 */
+.tsum{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-top:4px;
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:end}
+.tsum .k{grid-column:1/-1;font-size:12px;font-weight:700;color:var(--mute);letter-spacing:.04em}
+.tsum .sd{font-size:28px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums}
+.tsum .sa{font-size:15px;font-weight:800;text-align:right;white-space:nowrap}
+.tsum .sa.over{color:#B02D2D}
+.tsum .s{grid-column:1/-1;font-size:13px;color:var(--mute);margin-top:6px;padding-top:8px;border-top:1px solid #EEF1EE;
+  display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.tsum .s b{color:var(--ink)}
+.tsum .cyb{border:1px solid var(--line);background:var(--shell);border-radius:7px;padding:4px 10px;font-family:inherit;font-size:13px;
+  font-weight:700;color:var(--teal);cursor:pointer}
+.tsubs{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center}
+.tsubs span{font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:#E4EBE8;color:#2C403B}
+.tsubs .k2{font-size:12px;font-weight:700;color:var(--mute);background:none;padding:0 2px 0 0}
+.tsubs button{font-family:inherit;font-size:13px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px dashed #A6B0AC;
+  background:transparent;color:#65726E;cursor:pointer}
+.year{font-size:22px;font-weight:800;color:#B9C2BE;margin:16px 4px 4px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.tl{display:grid;grid-template-columns:62px 18px minmax(0,1fr);column-gap:8px}
+.tl .dt{text-align:right;padding-top:1px;cursor:pointer}
+.tl .dt b{display:block;font-size:21px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums}
+.tl .dt span{font-size:12px;color:var(--mute)}
+.tl .rail{position:relative}
+.tl .rail::before{content:"";position:absolute;left:8px;top:0;bottom:0;width:2px;background:var(--line)}
+.tl .rail i{position:absolute;left:3px;top:7px;width:12px;height:12px;border-radius:50%;background:var(--card);border:3px solid var(--teal)}
+.tl .rail.first i{background:var(--ink);border-color:var(--ink)}
+.tl .ct{padding:0 0 4px;min-width:0;cursor:pointer}
+.tl .ct .tx{font-size:15.5px;font-weight:600;line-height:1.45;word-break:break-word;white-space:pre-wrap}
+.tl .ct .tx.dim{color:var(--mute);font-weight:500}
+.tl .ct .lc{font-size:12.5px;color:var(--mute);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tl .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.tl .tags span{font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;background:#E4EBE8;color:#2C403B}
+.tl .ct .acts{padding:8px 0 4px}
+.tl .gap{grid-column:2/4;font-size:12px;color:#8A948F;padding:6px 0 10px 22px;position:relative;font-variant-numeric:tabular-nums}
+.tl .gap::before{content:"";position:absolute;left:8px;top:0;bottom:0;width:2px;background:var(--line)}
+.tl .gap.long{color:var(--rust);font-weight:700}
+.tl .gsp{grid-column:1/2}
+.thint{font-size:12.5px;color:var(--mute);margin:10px 4px 0}
 /* ===== 表單裡的結構化選項 ===== */
 #rTop{margin-bottom:6px}
 .sp.add{border-style:dashed;color:#8A948F}
@@ -331,8 +423,9 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
 <div id="wrap">
   <div id="app">
     <header>
-      <div class="hrow"><h1 id="title"></h1>
+      <div class="hrow"><button class="backbtn" id="backbtn" hidden>‹ 全部</button><h1 id="title"></h1>
         <button class="donebtn" id="donebtn">已完成</button>
+        <button class="donebtn" id="tilebtn" hidden>調整</button>
         <span class="count" id="count"></span>
         <button class="morebtn" id="morebtn" aria-label="資料">⋯</button></div>
       <div class="syncbar" id="syncbar"></div>
@@ -382,6 +475,17 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
       <div class="srow"><button id="cclose" style="flex:1">關閉</button></div>
     </div>
   </div>
+  <!-- 每個「＋」共用的小視窗:打一個名字(或週期天數),必要時選型態 -->
+  <div class="veil" id="pveil">
+    <div class="modal">
+      <div class="mtitle" id="ptitle"></div>
+      <div class="cbtns" id="pchoices" style="margin-bottom:10px"></div>
+      <input id="pin" class="oin" style="width:100%">
+      <div class="dhint" id="phint" style="margin-top:8px"></div>
+      <div class="err" id="perr"></div>
+      <div class="srow"><button id="pcancel">取消</button><button class="save" id="pok">新增</button></div>
+    </div>
+  </div>
   <div class="veil" id="oveil">
     <div class="modal">
       <div class="mtitle">紀錄設定</div>
@@ -418,11 +522,12 @@ const STA=Object.keys(STATIONS);
 const ALL_MACS=[...new Set([...STATIONS.ECU,...STATIONS.EPG])];
 const NONE='__none__';   // 篩選用:只看「沒填」的那些
 /* 待辦的類別是**使用者資料**,不是寫死的常數,所以用 getter 去問 Cats。
-   紀錄和專案的類別仍然固定——那兩類的欄位和行為是綁在類別上的
-   (掛籃要編號、專案要算停滯),開放自訂只會做出壞掉的組合。 */
+   紀錄的類別也是使用者資料(Opts.recs),但每一類綁一種「型態」——
+   治工具 / 分大項(像保養)/ 流水帳(像更換備品),欄位和畫面跟著型態走,不會做出壞掉的組合。
+   專案的類別仍然固定。 */
 const FAM={
   待辦:{get cats(){return Cats.names()}},
-  紀錄:{cats:['治工具','保養紀錄','更換備品紀錄']},
+  紀錄:{get cats(){return ['治工具',...Opts.recs.map(r=>r.name)]}},
   專案:{cats:['化銅線漏液改善追蹤','鎳鈀金線漏液改善追蹤']},
   調查:{cats:['調查']}
 };
@@ -457,15 +562,18 @@ const LEGACY_ST={'處理中':'未處理'};
 const kOf=i=>i.family==='待辦'?Cats.colorOf(i.cat)
   :i.family==='紀錄'?'k4':i.family==='調查'?'kq':'k5';
 const isFx=(family,cat)=>family==='紀錄'&&cat==='治工具';
-const isPm=(family,cat)=>family==='紀錄'&&cat==='保養紀錄';
-const catLabel=c=>c.startsWith('fx:')?(c.slice(3)||'未分種類'):c.replace('紀錄','');
-/* 紀錄的分頁:每個治工具種類自己一頁(掛籃、飛靶…),後面接保養、更換備品。
-   種類分頁的代號是 'fx:種類',跟固定的類別名分開,不會撞名。
-   資料裡出現過、但設定清單上沒有的種類(別台裝置同步下來的)也要有自己的分頁——
-   不然那幾支不屬於任何分頁,在畫面上等於不存在。 */
+const isPm=(family,cat)=>family==='紀錄'&&Opts.recType(cat)==='pm';
+const catLabel=c=>c.startsWith('fx:')?(c.slice(3)||'未分種類'):c==='治工具'?'治工具'
+  :(Opts.recOf(c)?Opts.recOf(c).label:c.replace(/紀錄$/,''));
+/* 紀錄的區塊:每個治工具種類一塊(掛籃、飛靶…),再加上每個紀錄類別(保養、更換備品…)。
+   種類的代號是 'fx:種類',跟類別名分開,不會撞名。
+   資料裡出現過、但設定清單上沒有的種類(別台裝置同步下來的)也要有自己的區塊——
+   不然那幾支不屬於任何區塊,在畫面上等於不存在。 */
 const fxKinds=()=>[...new Set([...Opts.kinds,...all.filter(i=>isFx(i.family,i.cat)).map(i=>i.kind)])];
-const recTabs=()=>[...fxKinds().map(k=>'fx:'+k),'保養紀錄','更換備品紀錄'];
+const recTabs=()=>[...fxKinds().map(k=>'fx:'+k),...Opts.recs.map(r=>r.name)];
 const subKind=()=>sub.startsWith('fx:')?sub.slice(3):null;
+const REC_TYPES={pm:'分大項',log:'流水帳',fx:'治工具'};
+const TILE_COLORS=['#146B4F','#2B5CA6','#B0600D','#6A4FA8','#8A2E5B','#4F6B23','#6E4A22','#1E3A78','#B02D2D'];
 
 /* ===== 明細解析 =====
    調查類的輸入刻意維持自由文字——跟使用者在 ColorNote 上打的一模一樣,
@@ -520,8 +628,11 @@ const Store=(()=>{
        類別現在是使用者自己開的,別台裝置同步下來的類別本機可能還沒有;
        若照舊「不認得就歸到第一類」,那批資料會被默默搬走,而且看不出來。
        寧可先照原樣留著,再由 Cats.reconcile() 把沒見過的類別補進清單。 */
+    /* 紀錄的類別也一樣是使用者開的:不認得的照原樣留著,由 Opts.reconcile() 補進清單 */
     const cat=family==='待辦'
       ?(typeof o.cat==='string'&&o.cat?o.cat:(cats[0]||'工作'))
+      :family==='紀錄'
+      ?(typeof o.cat==='string'&&o.cat?o.cat:'保養紀錄')
       :(cats.includes(o.cat)?o.cat:cats[0]);
     /* 站別可以是空的。從 ColorNote 匯進來的舊資料有一半看不出是哪一站,
        硬塞一個 ECU 比留白更糟:留白至少是誠實的,而且篩得出來、補得回去。
@@ -536,7 +647,8 @@ const Store=(()=>{
     const raw=LEGACY_ST[o.status]||o.status;
     const status=family==='待辦'?(TODO_ST.includes(raw)?raw:'未處理'):'—';
     const updated=o.updated||created;
-    const fx=isFx(family,cat), pm=isPm(family,cat);
+    // 大項、細項:只要是紀錄、不是治工具就保留。類別型態還沒對上(剛同步下來)也不能先丟掉
+    const fx=isFx(family,cat), pm=family==='紀錄'&&!fx;
     const ev=LEGACY_EV[o.event]||o.event;
     return{id:o.id,family,cat,sta,mac,
       // 編號一律大寫,b-13 和 B-13 是同一支
@@ -616,64 +728,131 @@ const Cats={
     await this.save(); return null}
 };
 
-/* ===== 1c. 治工具種類、保養大項 =====
-   跟待辦類別一樣是使用者資料,存 meta 表、跟著備份走。
-   種類(掛籃、飛靶…)**一種一個分頁**,所以底下還有東西就不准刪,要先把它們改成別的種類;
-   資料裡出現過但清單上沒有的種類照樣會長出分頁(recTabs),不會有哪一支無家可歸。
-   保養大項**不切分頁**,只是篩選,刪掉不會讓任何紀錄消失,刪掉的只是「新增時的選項」。 */
+/* ===== 1c. 紀錄的類別、治工具種類、大項 =====
+   全部是使用者資料,存 meta 表、跟著備份走。三層都能自己加:
+     大:紀錄類別(保養、更換備品…)和治工具種類(掛籃、飛靶…),每個是首頁的一個區塊
+     中:分大項類別底下的大項(天車橫移保養…),也是區塊,還帶著週期
+     小:大項底下的細項(齒排更換…),新增紀錄時勾選
+   類別和種類是區塊(等於分頁),底下還有東西就不准刪——刪了它也會因為「資料裡有」又長回來。
+   資料裡出現過但清單上沒有的(別台裝置同步下來的)一律補進清單,不會有東西無家可歸。
+   大項不准刪的理由不存在:大項區塊也是從「設定 ∪ 資料裡出現過的」算出來的,刪掉的只是新增時的選項。 */
 const DEFAULT_KINDS=['掛籃','飛靶'];
 const DEFAULT_PM=[
   {name:'天車橫移保養',cycle:null,subs:['齒排更換','齒輪更換','滑軌滑塊更換']},
   {name:'天車升降保養',cycle:null,subs:[]},
   {name:'天車承液盤保養',cycle:null,subs:[]},
   {name:'天車拖鏈保養',cycle:null,subs:[]},
-  {name:'搖擺保養',cycle:null,subs:[]}
+  {name:'搖擺保養',cycle:null,subs:[]},
+  {name:'爐門保養',cycle:null,subs:[]}
 ];
+const DEFAULT_RECS=[{name:'保養紀錄',label:'保養',type:'pm'},{name:'更換備品紀錄',label:'更換備品',type:'log'}];
+const PM_SEED_V2=['爐門保養'];   // 已經存過大項清單的手機,升版時補一次這些
 const strList=a=>Array.isArray(a)?[...new Set(a.filter(x=>typeof x==='string'&&x.trim()).map(x=>x.trim()))]:[];
 const cleanPm=p=>({name:p.name.trim(),
   cycle:Number.isFinite(p.cycle)&&p.cycle>0?Math.round(p.cycle):null,subs:strList(p.subs)});
+const okName=x=>x&&typeof x.name==='string'&&x.name.trim();
 const Opts={
-  kinds:[], pm:[],
-  pmOf(name){return this.pm.find(p=>p.name===name)},
+  kinds:[], recs:[], layout:[],
+  // 保養紀錄的大項沿用舊的 pmItems(舊版備份、舊手機都認得);其他分大項類別的大項放在類別自己身上
+  get pm(){const r=this.recOf('保養紀錄'); return r&&r.majors?r.majors:[]},
+  recOf(name){return this.recs.find(r=>r.name===name)},
+  recType(cat){if(cat==='治工具') return 'fx'; const r=this.recOf(cat); return r?r.type:null},
+  majorsOf(cat){const r=this.recOf(cat); return r&&r.type==='pm'?(r.majors||(r.majors=[])):[]},
+  pmOf(cat,major){return this.majorsOf(cat).find(p=>p.name===major)},
   async load(){
-    const k=await Store.getMeta('fxKinds'), p=await Store.getMeta('pmItems');
+    const k=await Store.getMeta('fxKinds'), p=await Store.getMeta('pmItems'),
+          rc=await Store.getMeta('recCats'), lay=await Store.getMeta('recLayout'),
+          seeded=await Store.getMeta('pmSeedV2');
     this.kinds=strList(k).length?strList(k):[...DEFAULT_KINDS];
-    const ok=Array.isArray(p)&&p.length&&p.every(x=>x&&typeof x.name==='string'&&x.name.trim());
-    this.pm=ok?p.map(cleanPm):DEFAULT_PM.map(cleanPm)},
+    this.recs=(Array.isArray(rc)&&rc.length&&rc.every(okName)?rc:DEFAULT_RECS).map(r=>({
+      name:r.name.trim(),label:(typeof r.label==='string'&&r.label.trim())||r.name.trim(),
+      type:r.type==='log'?'log':'pm',
+      majors:r.type==='log'?undefined:(Array.isArray(r.majors)?r.majors.filter(okName).map(cleanPm):[])}));
+    const pmr=this.recOf('保養紀錄');
+    if(pmr){
+      const ok=Array.isArray(p)&&p.length&&p.every(okName);
+      pmr.majors=ok?p.map(cleanPm):DEFAULT_PM.map(cleanPm);
+      if(ok&&!seeded){for(const n of PM_SEED_V2) if(!this.pmOf('保養紀錄',n)) pmr.majors.push({name:n,cycle:null,subs:[]})}
+    }
+    this.layout=Array.isArray(lay)?lay.filter(x=>x&&typeof x.key==='string'&&/^[SML]$/.test(x.size))
+      .map(x=>({key:x.key,size:x.size,c:TILE_COLORS.includes(x.c)?x.c:null})):[];
+    if(!seeded){await Store.setMeta('pmSeedV2',1); await this.save()}},
   async save(){
     await Store.setMeta('fxKinds',this.kinds);
-    await Store.setMeta('pmItems',this.pm)},
+    await Store.setMeta('pmItems',this.pm);
+    await Store.setMeta('recCats',this.recs.map(r=>({name:r.name,label:r.label,type:r.type,
+      majors:r.name==='保養紀錄'||r.type!=='pm'?undefined:r.majors})));
+    await Store.setMeta('recLayout',this.layout)},
   check(name,list){
     name=(name||'').trim();
     if(!name) return '先打個名稱';
     if([...name].length>10) return '最多 10 個字';
     if(list.includes(name)) return '已經有了';
     return null},
-  async addKind(n){const e=this.check(n,this.kinds); if(e) return e;
+  // 種類和類別共用首頁,名字不能撞;「治工具」「全部」「已完成」是保留字
+  checkTop(n){
+    const e=this.check(n,[...this.kinds,...this.recs.map(r=>r.name),...this.recs.map(r=>r.label)]);
+    if(e) return e;
+    if(['治工具',...RESERVED].includes(n.trim())) return `「${n.trim()}」是保留的名字,換一個`;
+    return null},
+  async addKind(n){const e=this.checkTop(n); if(e) return e;
     this.kinds.push(n.trim()); await this.save(); return null},
-  async addMajor(n){const e=this.check(n,this.pm.map(p=>p.name)); if(e) return e;
-    this.pm.push({name:n.trim(),cycle:null,subs:[]}); await this.save(); return null},
-  async addSub(major,n){
-    let p=this.pmOf(major);
-    if(!p){p={name:major,cycle:null,subs:[]}; this.pm.push(p)}
+  async addRec(n,type){const e=this.checkTop(n); if(e) return e;
+    n=n.trim(); this.recs.push({name:n,label:n,type,majors:type==='pm'?[]:undefined}); await this.save(); return null},
+  async addMajor(cat,n,cycle){const ms=this.majorsOf(cat), e=this.check(n,ms.map(p=>p.name)); if(e) return e;
+    const v=parseInt(cycle,10); ms.push({name:n.trim(),cycle:v>0?v:null,subs:[]}); await this.save(); return null},
+  async addSub(cat,major,n){
+    let p=this.pmOf(cat,major);
+    if(!p){p={name:major,cycle:null,subs:[]}; this.majorsOf(cat).push(p)}
     const e=this.check(n,p.subs); if(e) return e;
     p.subs.push(n.trim()); await this.save(); return null},
-  async setCycle(major,d){const p=this.pmOf(major); if(!p) return;
+  async setCycle(cat,major,d){
+    let p=this.pmOf(cat,major);
+    if(!p){p={name:major,cycle:null,subs:[]}; this.majorsOf(cat).push(p)}
     const v=parseInt(d,10); p.cycle=v>0?v:null; await this.save()},
   async delKind(n){this.kinds=this.kinds.filter(x=>x!==n); await this.save()},
-  async delMajor(n){this.pm=this.pm.filter(x=>x.name!==n); await this.save()},
-  async delSub(major,n){const p=this.pmOf(major); if(!p) return;
+  async delRec(n){this.recs=this.recs.filter(r=>r.name!==n); await this.save()},
+  async delMajor(cat,n){const r=this.recOf(cat); if(!r||!r.majors) return; r.majors=r.majors.filter(x=>x.name!==n); await this.save()},
+  async delSub(cat,major,n){const p=this.pmOf(cat,major); if(!p) return;
     p.subs=p.subs.filter(x=>x!==n); await this.save()},
+  /* 資料裡有、清單上沒有的類別補進清單。有大項的當成分大項,沒有的當成流水帳。
+     跟 Cats.reconcile 同一個理由:漏補的話那些紀錄沒有區塊認領,在畫面上等於不存在。 */
+  async reconcile(items){
+    let add=false;
+    for(const i of items){
+      if(i.family!=='紀錄'||i.cat==='治工具'||this.recOf(i.cat)) continue;
+      const hasMajor=items.some(x=>x.family==='紀錄'&&x.cat===i.cat&&x.major);
+      this.recs.push({name:i.cat,label:i.cat.replace(/紀錄$/,'')||i.cat,type:hasMajor?'pm':'log',majors:hasMajor?[]:undefined}); add=true}
+    if(add) await this.save();
+    return add},
   // 匯入備份時只補不蓋:沒有的才加進來,已經有的(包括你改過的週期)不動
   async merge(d){
     for(const k of strList(d&&d.kinds)) if(!this.kinds.includes(k)) this.kinds.push(k);
-    for(const p of (Array.isArray(d&&d.pm)?d.pm:[])){
-      if(!p||typeof p.name!=='string'||!p.name.trim()) continue;
-      const c=cleanPm(p), cur=this.pmOf(c.name);
-      if(!cur) this.pm.push(c);
-      else{for(const s of c.subs) if(!cur.subs.includes(s)) cur.subs.push(s);
-        if(cur.cycle==null) cur.cycle=c.cycle}}
-    await this.save()}
+    for(const r of (Array.isArray(d&&d.recs)?d.recs:[])){
+      if(!okName(r)||this.recOf(r.name.trim())) continue;
+      this.recs.push({name:r.name.trim(),label:(r.label||r.name).trim(),type:r.type==='log'?'log':'pm',
+        majors:r.type==='log'?undefined:[]})}
+    const mergeMajors=(cat,list)=>{
+      for(const p of (Array.isArray(list)?list:[])){
+        if(!okName(p)) continue;
+        const c=cleanPm(p), cur=this.pmOf(cat,c.name);
+        if(!cur) this.majorsOf(cat).push(c);
+        else{for(const s of c.subs) if(!cur.subs.includes(s)) cur.subs.push(s);
+          if(cur.cycle==null) cur.cycle=c.cycle}}};
+    if(this.recOf('保養紀錄')) mergeMajors('保養紀錄',d&&d.pm);
+    for(const r of (Array.isArray(d&&d.recs)?d.recs:[])) if(okName(r)&&r.name!=='保養紀錄') mergeMajors(r.name.trim(),r.majors);
+    await this.save()},
+  /* 首頁區塊的順序、大小、顏色。顏色跟著區塊存,不照順序算——
+     照順序算的話,刪掉中間一塊,後面每一塊都會換顏色 */
+  tiles(){
+    const keys=recTabs();
+    for(const k of keys) if(!this.layout.some(x=>x.key===k)){
+      const t=k.startsWith('fx:')?'fx':this.recType(k);
+      const used=new Set(this.layout.map(x=>x.c));
+      this.layout.push({key:k,size:t==='pm'?'L':t==='log'?'M':'S',
+        c:TILE_COLORS.find(c=>!used.has(c))||TILE_COLORS[this.layout.length%TILE_COLORS.length]})}
+    return this.layout.filter(x=>keys.includes(x.key));
+  }
 };
 
 /* ===== 2. 資料模型 ===== */
@@ -1020,50 +1199,175 @@ function renderFx(L,C){
   L.innerHTML=h;
 }
 
-/* ===== 保養 ===== */
-function cardPm(i,ex){
-  const head=i.major
-    ?`<div class="meta"><span class="ptitle">${esc(i.major)}</span>${i.dirty?'<span class="pin">待上傳</span>':''}<span class="stale">${md(i.at)}</span></div>
-      <div class="meta">${loc(i)}</div>`
-    // 舊資料沒有大項,照原本的樣子顯示
-    :`<div class="meta"><span class="tag k4">保養</span>${loc(i)}${i.dirty?'<span class="pin">待上傳</span>':''}<span class="stale">${md(i.at)}</span></div>`;
-  const subs=i.minors.length?`<div class="subs">${i.minors.map(s=>`<span class="subt">${esc(s)}</span>`).join('')}</div>`:'';
-  const note=i.text?`<div class="${i.major?'pnote':'text'}">${esc(i.text)}</div>`:'';
-  return `<div class="item"><div class="bar ${macColor(i.mac)}"></div><div style="flex:1;min-width:0">
-    <div class="body" data-tap="${i.id}">${head}${subs}${note}${
-      i.edited?`<div class="dates">編輯 ${md(i.edited)}</div>`:''}</div>${ex?editRow(i):''}</div></div>`;
+/* ===== 紀錄:區塊 → 大項區塊 → 時間軸 =====
+   由大到小三層。sub='' 是首頁區塊;sub='fx:掛籃' 是治工具狀態板;sub=類別名 是那一類。
+   分大項的類別再用 pmMajor 分兩層:null 是大項區塊,大項名 是那一項的時間軸。 */
+let pmMajor=null, tileEdit=false;   // null = 還沒選大項;'' 是「未分大項」那一塊
+const shortM=m=>m?m.replace(/保養$/,''):'未分大項';
+const fullDate=t=>{const d=new Date(t);return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`};
+const WEEK='日一二三四五六';
+// 每個大項:上次做是什麼時候、每台機台各自有沒有超過週期
+function majorStats(cat,recs){
+  const names=[...new Set([...Opts.majorsOf(cat).map(p=>p.name),...recs.filter(r=>r.major).map(r=>r.major)])];
+  if(recs.some(r=>!r.major)) names.push('');   // 舊資料沒有大項,另外一塊,不能讓它消失
+  return names.map(m=>{
+    const rs=recs.filter(r=>r.major===m).sort((a,b)=>b.at-a.at);
+    const p=Opts.pmOf(cat,m), cy=p&&p.cycle;
+    const lastBy=new Map();
+    for(const r of rs){const k=r.sta+'|'+r.mac; if(!lastBy.has(k)) lastBy.set(k,r)}
+    const lasts=[...lastBy.values()];
+    return {name:m,recs:rs,last:rs[0]||null,cycle:cy,machines:lastBy.size,
+      over:cy?lasts.filter(r=>days(r.at)>cy):[],
+      near:cy?lasts.filter(r=>{const d=days(r.at); return d<=cy&&d>=cy-7}):[]};
+  });
 }
-/* 「這台上次做是什麼時候」。
-   篩到一台機台時,把每個大項都列出來,連沒做過的也列——沒做過本身就是答案。
-   沒篩機台時機台太多列不完,只列超過週期的,那才是要你去做的。 */
-function pmSummary(recs){
-  const last=new Map();
-  for(const r of recs){
-    if(!r.major) continue;
-    const k=`${r.sta}|${r.mac}|${r.major}`;
-    if(!last.has(k)||last.get(k).at<r.at) last.set(k,r)}
-  const row=(label,r,major)=>{
-    const p=Opts.pmOf(major), cy=p&&p.cycle;
-    if(!r) return `<div class="pmrow"><span>${label}</span><span class="none">沒有紀錄</span></div>`;
-    const d=days(r.at);
-    const cls=cy?(d>cy?'over':d>=cy-7?'near':''):'';
-    return `<div class="pmrow"><span>${label}</span><span class="${cls}">${d===0?'今天':`${d} 天前`}${
-      cy?` · 每 ${cy} 天`:''}</span></div>`};
-  const macOn=flt.mac&&flt.mac!==NONE;
-  if(macOn){
-    const stas=flt.sta&&flt.sta!==NONE?[flt.sta]
-      :[...new Set(recs.filter(r=>r.mac===flt.mac).map(r=>r.sta))];
-    if(!stas.length) stas.push(flt.sta===NONE?'':'');
-    const majors=[...new Set([...Opts.pm.map(p=>p.name),...recs.filter(r=>r.major).map(r=>r.major)])]
-      .filter(m=>!flt.major||m===flt.major);
-    return stas.map(sta=>`<div class="mhead">各大項上次保養 · ${sta?sta+' ':''}${esc(flt.mac)}</div><div class="pmsum">${
-      majors.map(m=>row(esc(m),last.get(`${sta}|${flt.mac}|${m}`),m)).join('')}</div>`).join('');
+function tileInfo(key,scoped){
+  if(key.startsWith('fx:')){
+    const fs=fixtures(scoped).filter(f=>f.kind===key.slice(3)), live=fs.filter(f=>f.st!=='已報廢');
+    const n=s=>fs.filter(f=>f.st===s).length, need=live.filter(f=>FX_BAD.includes(f.st)).length;
+    const parts=FX_BAD.filter(s=>n(s)).map(s=>`<span class="sdot s-${s}"></span>${s} ${n(s)}`);
+    return {badge:need,hot:need>0,
+      big:need?`${need}<small>支待處理</small>`:`${live.length}<small>支 · 都正常</small>`,
+      lines:[parts.length?parts.join(' &nbsp;'):`使用中 ${n('使用中')} · 備用 ${n('備用')}`],more:''};
   }
-  const over=[...last.values()].filter(r=>{const p=Opts.pmOf(r.major); return p&&p.cycle&&days(r.at)>p.cycle})
-    .sort((a,b)=>a.at-b.at);
-  if(!over.length) return '';
-  return `<div class="mhead">超過週期 <span>· ${over.length}</span></div><div class="pmsum">${
-    over.map(r=>row(`${esc(r.major)} · ${r.sta?`<b>${r.sta}</b> `:''}${esc(r.mac||'未指定')}`,r,r.major)).join('')}</div>`;
+  const recs=scoped.filter(i=>i.cat===key).sort((a,b)=>b.at-a.at), last=recs[0];
+  const lastLine=last?`<b>${md(last.at)}</b> ${last.major?esc(shortM(last.major))+' · ':''}${esc(last.text||last.minors.join('、')||'')}`
+    :'還沒有紀錄';
+  if(Opts.recType(key)==='pm'){
+    const ms=majorStats(key,recs), over=ms.reduce((a,m)=>a+m.over.length,0);
+    return {badge:over,hot:over>0,
+      big:over?`${over}<small>項超過週期</small>`:last?`${days(last.at)}<small>天前做過</small>`:`0<small>筆</small>`,
+      lines:[lastLine],
+      more:ms.filter(m=>m.over.length).slice(0,2).map(m=>`<div class="wrow"><span>${esc(shortM(m.name))}</span><span>${
+        days(m.over[0].at)} 天 / ${m.cycle}</span></div>`).join('')
+        +`<div class="rline">${ms.filter(m=>m.name).length} 個大項 · 共 ${recs.length} 筆</div>`};
+  }
+  const month=recs.filter(i=>ym(i.at)===ym(Date.now())).length;
+  return {badge:0,hot:false,big:`${month}<small>筆本月</small>`,lines:[lastLine],more:`<div class="rline">共 ${recs.length} 筆</div>`};
+}
+function renderRecHome(L,C){
+  const scoped=applyFlt(all.filter(i=>i.family==='紀錄'),false), tiles=Opts.tiles();
+  let need=0;
+  const html=tiles.map((t,i)=>{
+    const f=tileInfo(t.key,scoped); need+=f.badge;
+    return `<div class="rtile ${t.size}" data-tile="${esc(t.key)}" data-fk="${esc(t.key)}" role="button">
+      <div class="rname"><i style="background:${t.c}"></i>${esc(catLabel(t.key))}${f.badge?`<span class="rbadge">${f.badge}</span>`:''}</div>
+      <div class="rbig${f.hot?' hot':''}">${f.big}</div>${f.lines.map(l=>`<div class="rline">${l}</div>`).join('')}
+      <div class="rmore">${f.more}</div>
+      <div class="sizer">${['S','M','L'].map(z=>`<button data-size="${z}" data-k="${esc(t.key)}" class="${t.size===z?'on':''}">${{S:'小',M:'中',L:'大'}[z]}</button>`).join('')}</div>
+      <div class="mvs"><button data-mv="-1" data-k="${esc(t.key)}"${i===0?' disabled':''} aria-label="往前移">↑</button><button data-mv="1" data-k="${esc(t.key)}"${i===tiles.length-1?' disabled':''} aria-label="往後移">↓</button></div>
+    </div>`}).join('');
+  C.textContent=need?`要處理 ${need}`:`${tiles.length} 類`;
+  L.innerHTML=`<div class="rboard${tileEdit?' editing':''}">${html}<div class="rtile add" data-addtop="1">＋ 新增類別</div></div>`
+    +(tileEdit?'<button class="obtn" data-opts="1">類別、大項、週期設定</button>'
+      :(fltOn()?'<div class="thint">區塊上的數字只算目前篩選的範圍。</div>':''));
+}
+function cyPill(m){
+  if(!m.last) return '';
+  if(!m.cycle) return '<span class="cyp ok">沒有固定週期</span>';
+  if(m.over.length) return `<span class="cyp over">${m.machines>1?`${m.over.length} 台超過週期`:`超過週期 ${days(m.over[0].at)-m.cycle} 天`}</span>`;
+  if(m.near.length) return `<span class="cyp near">${m.machines>1?`${m.near.length} 台快到期`:`剩 ${m.cycle-days(m.near[0].at)} 天`}</span>`;
+  return `<span class="cyp ok">每 ${m.cycle} 天</span>`;
+}
+function renderMajors(L,C,cat){
+  const recs=applyFlt(all.filter(i=>i.family==='紀錄'&&i.cat===cat));
+  const ms=majorStats(cat,recs);
+  C.textContent=`${recs.length} 筆`;
+  L.innerHTML=`<div class="mboard">${ms.map(m=>{
+    const d=m.last?days(m.last.at):null;
+    return `<div class="mtile${m.over.length?' over':''}" data-major="${esc(m.name)}" data-fk="m:${esc(m.name)}" role="button">
+      <div class="mn">${esc(shortM(m.name))}</div>${m.last
+        ?`<div class="ago">${d===0?'今天':`${d}<small>天前</small>`}</div>
+          <div class="ml">上次 ${fullDate(m.last.at)}</div>
+          <div class="ml">${m.machines>1?`${m.machines} 台機台`:`${m.last.sta?`<b>${m.last.sta}</b> `:''}${esc(m.last.mac||'未指定機台')}`}</div>`
+        :`<div class="ago none">還沒有紀錄</div><div class="ml">${fltOn()?'這個範圍沒有':'點進去,用＋記第一筆'}</div>`}
+      ${cyPill(m)}</div>`}).join('')}
+    <div class="mtile add" data-addmajor="1">＋ 大項</div></div>`;
+}
+function renderTimeline(L,C,cat,major){
+  const recs=applyFlt(all.filter(i=>i.family==='紀錄'&&i.cat===cat&&i.major===major)).sort((a,b)=>b.at-a.at||b.created-a.created);
+  const p=Opts.pmOf(cat,major), cy=p&&p.cycle;
+  C.textContent=`${recs.length} 筆`;
+  // 間隔只在同一台機台上才有意義;好幾台混在一起時,兩筆之間差幾天什麼也說明不了
+  const solo=new Set(recs.map(r=>r.sta+'|'+r.mac)).size<=1;
+  const gaps=recs.slice(0,-1).map((r,i)=>Math.round((d0(r.at)-d0(recs[i+1].at))/DAY));
+  const real=gaps.filter(g=>g>0);
+  const avg=solo&&real.length?Math.round(real.reduce((a,b)=>a+b,0)/real.length):null;
+  const last=recs[0], d=last?days(last.at):null;
+  const subs=[...new Set([...(p?p.subs:[]),...recs.flatMap(r=>r.minors)])];
+  let h=`<div class="tsum">${last
+      ?`<div class="k">上次${esc(catLabel(cat))}</div><div class="sd">${fullDate(last.at)}</div>
+        <div class="sa${cy&&solo&&d>cy?' over':''}">${d===0?'今天':`${d} 天前`}</div>`
+      :`<div class="k">${esc(shortM(major))}</div><div class="sd" style="font-size:18px;color:var(--mute)">${fltOn()?'這個範圍還沒有紀錄':'還沒有紀錄'}</div><div></div>`}
+    <div class="s">${recs.length?`<span>共 <b>${recs.length}</b> 筆</span>`:''}${avg?`<span>平均每 <b>${avg}</b> 天一次</span>`:''}${
+      !solo?`<span>${new Set(recs.map(r=>r.sta+'|'+r.mac)).size} 台機台</span>`:''}
+      <button class="cyb" data-cycle="1">${cy?`週期 ${cy} 天`:'設定週期'}</button></div>
+    <div class="tsubs"><span class="k2">細項</span>${subs.map(x=>`<span>${esc(x)}</span>`).join('')}<button data-addsub="1">＋ 細項</button></div>
+  </div>`;
+  if(!recs.length){L.innerHTML=h+'<div class="thint">按右下角＋記第一筆,大項會自動帶好。</div>'; return}
+  if(!solo) h+='<div class="thint">混了好幾台機台。篩選一台,就看得到每次相隔幾天。</div>';
+  let year='';
+  h+='<div class="tl">';
+  recs.forEach((r,i)=>{
+    const t=new Date(r.at), y=String(t.getFullYear()), ex=open===r.id;
+    if(y!==year){year=y; h+=`</div><div class="year">${y}</div><div class="tl">`}
+    h+=`<div class="dt" data-tap="${r.id}"><b>${t.getMonth()+1}/${String(t.getDate()).padStart(2,'0')}</b><span>週${WEEK[t.getDay()]}</span></div>
+      <div class="rail${i===0?' first':''}"><i></i></div>
+      <div class="ct"><div data-tap="${r.id}"><div class="tx${r.text?'':' dim'}">${esc(r.text||(r.minors.length?'':'(沒有備註)'))}</div>
+        <div class="lc">${loc(r)}${r.dirty?'<span class="pin">待上傳</span>':''}${r.edited&&ex?`<span>編輯 ${md(r.edited)}</span>`:''}</div>
+        ${r.minors.length?`<div class="tags">${r.minors.map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:''}</div>
+        ${ex?editRow(r):''}</div>`;
+    if(solo&&i<gaps.length){
+      const g=gaps[i], long=cy&&g>cy;
+      h+=`<div class="gsp"></div><div class="gap${long?' long':''}">${g===0?'同一天':`↕ 相隔 ${g} 天${long?'(超過週期)':''}`}</div>`}
+  });
+  L.innerHTML=h+'</div>';
+}
+/* 區塊縮成上方一排的動畫(FLIP):先記下每塊現在的位置,換畫面,再從舊位置滑到新位置。
+   同一個東西在兩個畫面上帶同一個 data-fk,就對得起來 */
+const REDUCE=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+function snapFk(){const m={};document.querySelectorAll('[data-fk]').forEach(el=>{const r=el.getBoundingClientRect(); if(r.width) m[el.dataset.fk]=r}); return m}
+function playFk(m){
+  if(REDUCE) return;
+  document.querySelectorAll('[data-fk]').forEach(el=>{
+    const a=m[el.dataset.fk]; if(!a) return;
+    const b=el.getBoundingClientRect(); if(!b.width||!b.height) return;
+    if(Math.abs(a.left-b.left)<1&&Math.abs(a.top-b.top)<1&&Math.abs(a.width-b.width)<1) return;
+    el.style.transformOrigin='0 0';
+    el.animate([{transform:`translate(${a.left-b.left}px,${a.top-b.top}px) scale(${a.width/b.width},${a.height/b.height})`},{transform:'none'}],
+      {duration:320,easing:'cubic-bezier(.2,.8,.2,1)'})});
+}
+async function go(fn){
+  const m=snapFk(); fn(); open=null;
+  const L=$('list'); L.scrollTop=0;
+  await render(); playFk(m);
+  L.classList.remove('enter'); void L.offsetWidth; L.classList.add('enter');
+  const on=$('filters').querySelector('.chip.on'); if(on) on.scrollIntoView({inline:'center',block:'nearest'});
+}
+
+/* 每個「＋」共用的小視窗。check 回傳錯誤訊息就留在視窗裡讓人改 */
+function ask({title,placeholder='',value='',type='text',hint='',choices=null,ok='新增',check}){
+  return new Promise(done=>{
+    const V=$('pveil'), I=$('pin'), E=$('perr'), CH=$('pchoices');
+    let pick=choices?choices[0][0]:null;
+    $('ptitle').textContent=title; $('phint').textContent=hint; $('pok').textContent=ok;
+    I.type=type; I.inputMode=type==='number'?'numeric':'text'; I.placeholder=placeholder; I.value=value;
+    E.classList.remove('on');
+    const drawCh=()=>{CH.style.display=choices?'flex':'none';
+      CH.innerHTML=choices?choices.map(([v,l])=>`<span class="sp ${v===pick?'on':''}" data-c="${v}">${l}</span>`).join(''):''};
+    drawCh();
+    CH.onclick=e=>{const c=e.target.closest('[data-c]'); if(c){pick=c.dataset.c; drawCh()}};
+    const end=v=>{V.classList.remove('on'); I.blur(); I.onkeydown=null; done(v)};
+    $('pcancel').onclick=()=>end(null);
+    V.onclick=e=>{if(e.target===V) end(null)};
+    const submit=async()=>{
+      const err=check?await check(I.value.trim(),pick):null;
+      if(err){E.textContent=err; E.classList.add('on'); I.focus(); return}
+      end({value:I.value.trim(),choice:pick})};
+    $('pok').onclick=submit;
+    I.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault(); submit()}};
+    V.classList.add('on'); setTimeout(()=>I.focus(),150);
+  });
 }
 
 /* 篩選列用原生 select。Android 會跳出系統選單,選項又大又好按,
@@ -1085,18 +1389,11 @@ function renderFbar(){
   if(fam==='待辦'&&sub==='已完成')
     h+=`<select class="fsel${flt.cat?' on':''}" id="fCat">${
       opt('','全部類別',flt.cat)}${FAM.待辦.cats.map(c=>opt(c,c,flt.cat)).join('')}</select>`;
-  // 種類和大項的選單:設定裡的 + 資料裡真的出現過的。刪掉的選項底下若還有東西,照樣篩得到
-  const seen=(f,c,k)=>all.filter(i=>i.family===f&&i.cat===c&&i[k]).map(i=>i[k]);
-  if(fam==='紀錄'&&sub==='保養紀錄'){
-    const ms=[...new Set([...Opts.pm.map(p=>p.name),...seen('紀錄','保養紀錄','major')])];
-    h+=`<select class="fsel${flt.major?' on':''}" id="fMajor">${
-      opt('','全部大項',flt.major)}${ms.map(m=>opt(m,m.replace(/保養$/,''),flt.major)).join('')}</select>`}
   if(fltOn()) h+=`<button class="fclr" id="fClr">清除</button>`;
   F.innerHTML=h;
   $('fSta').onchange=e=>{flt.sta=e.target.value; flt.mac=''; open=null; render()};
   $('fMac').onchange=e=>{flt.mac=e.target.value; open=null; render()};
   const fc=$('fCat'); if(fc) fc.onchange=e=>{flt.cat=e.target.value; open=null; render()};
-  const fm=$('fMajor'); if(fm) fm.onchange=e=>{flt.major=e.target.value; open=null; render()};
   const cl=$('fClr'); if(cl) cl.onclick=()=>{flt.sta=flt.mac=flt.cat=flt.major=''; open=null; render()};
 }
 
@@ -1131,15 +1428,39 @@ async function render(){
     return `<div class="${f===fam?'on':''}" data-n="${f}" role="button">${f}<b>${n}</b></div>`}).join('');
   N.onclick=e=>{const t=e.target.closest('[data-n]'); if(!t)return;
     fam=t.dataset.n;
-    sub=fam==='待辦'?(Cats.names()[0]||'工作'):fam==='紀錄'?recTabs()[0]:'全部';   // 調查與專案不分頁
-    open=null; flt.cat=flt.major=''; render()};
+    // 紀錄從區塊首頁開始。調查與專案不分頁
+    sub=fam==='待辦'?(Cats.names()[0]||'工作'):fam==='紀錄'?'':'全部';
+    pmMajor=null; tileEdit=false; open=null; flt.cat=flt.major=''; render()};
 
-  $('title').textContent=fam==='待辦'?'待辦':fam==='紀錄'?'紀錄'
+  if(fam==='紀錄'&&sub&&!recTabs().includes(sub)){sub=''; pmMajor=null}
+  const inRec=fam==='紀錄'&&!!sub;
+  $('title').textContent=fam==='待辦'?'待辦'
+    :fam==='紀錄'?(!sub?'紀錄':isPm('紀錄',sub)&&pmMajor!==null?shortM(pmMajor):catLabel(sub))
     :fam==='調查'?'調查紀錄':'改善專案';
+  // 返回鍵:時間軸 → 大項區塊 → 紀錄首頁
+  const BB=$('backbtn');
+  BB.hidden=!inRec;
+  if(inRec) BB.textContent=pmMajor!==null&&isPm('紀錄',sub)?`‹ ${catLabel(sub)}`:'‹ 全部';
+  const TB=$('tilebtn');
+  TB.hidden=!(fam==='紀錄'&&!sub);
+  TB.className='donebtn'+(tileEdit?' on':''); TB.textContent=tileEdit?'完成':'調整';
 
   // 已完成是跨類別的一覽,那排類別在這裡沒有意義,整排收掉
-  const F=$('filters'), hideTabs=fam==='專案'||fam==='調查'||(fam==='待辦'&&sub==='已完成');
+  // 紀錄首頁是區塊本身,不需要上面那排;點進去之後,區塊縮成上面那排
+  const F=$('filters'), hideTabs=fam==='專案'||fam==='調查'||(fam==='待辦'&&sub==='已完成')||(fam==='紀錄'&&!sub);
   if(hideTabs){F.innerHTML=''; F.style.display='none'}
+  else if(fam==='紀錄'){
+    F.style.display='flex';
+    const scoped=applyFlt(all.filter(i=>i.family==='紀錄'),false);
+    if(isPm('紀錄',sub)&&pmMajor!==null){
+      // 時間軸那層:上面那排換成大項,切換大項不用退回去
+      const recs=scoped.filter(i=>i.cat===sub);
+      F.innerHTML=majorStats(sub,recs).map(m=>`<div class="chip ${m.name===pmMajor?'on':''}" data-major="${esc(m.name)}" data-fk="m:${esc(m.name)}">${
+        esc(shortM(m.name))}${m.over.length?`<b class="rb">!</b>`:''}</div>`).join('');
+    }else F.innerHTML=Opts.tiles().map(t=>{const n=tileInfo(t.key,scoped).badge;
+      return `<div class="chip ${t.key===sub?'on':''}" data-f="${esc(t.key)}" data-fk="${esc(t.key)}"><i class="cd" style="background:${t.c}"></i>${
+        esc(catLabel(t.key))}${n?`<b class="rb">${n}</b>`:''}</div>`}).join('');
+  }
   else{F.style.display='flex';
     // 計數跟著篩選走,不然數字跟你眼前的清單對不起來。類別篩選不算進去,否則變成自己數自己。
     const scoped=applyFlt(all.filter(i=>i.family===fam),false);
@@ -1189,17 +1510,10 @@ async function render(){
     return}
 
   if(fam==='紀錄'){
-    if(!recTabs().includes(sub)) sub=recTabs()[0];
+    if(!sub) return renderRecHome(L,C);
     if(subKind()!==null) return renderFx(L,C);
+    if(isPm('紀錄',sub)) return pmMajor!==null?renderTimeline(L,C,sub,pmMajor):renderMajors(L,C,sub);
     let v=applyFlt(all.filter(i=>i.family==='紀錄'&&i.cat===sub));
-    if(sub==='保養紀錄'){
-      const top=pmSummary(v);
-      if(flt.major) v=v.filter(i=>i.major===flt.major);
-      v.sort((a,b)=>b.at-a.at);
-      C.textContent=`${v.length} 筆`;
-      L.innerHTML=top+(v.length?group(v,i=>ym(i.at),i=>cardPm(i,open===i.id))
-        :`<div class="empty">${fltOn()?'這個範圍還沒有保養紀錄。':'還沒有保養紀錄。'}</div>`);
-      return}
     v.sort((a,b)=>b.at-a.at);
     C.textContent=`${v.length} 筆`;
     L.innerHTML=v.length?group(v,i=>ym(i.at),i=>cardLog(i,open===i.id))
@@ -1245,14 +1559,87 @@ $('donebtn').onclick=()=>{
 };
 $('filters').onclick=e=>{
   if(e.target.closest('[data-cats]')) return openCats();
-  if(e.target.closest('[data-opts]')) return openOpts();
+  if(fam==='紀錄'){
+    const mj=e.target.closest('[data-major]');
+    if(mj) return go(()=>{pmMajor=mj.dataset.major});
+    const c=e.target.closest('[data-f]'); if(!c||c.dataset.f===sub) return;
+    return go(()=>{sub=c.dataset.f; pmMajor=null});
+  }
   const c=e.target.closest('[data-f]'); if(!c)return;
   sub=c.dataset.f; open=null;
   if(sub!=='已完成') flt.cat='';   // 類別篩選只在已完成那一覽裡有意義
-  flt.major='';                    // 大項只在保養有意義
   render()};
+// 返回:時間軸 → 大項區塊 → 紀錄首頁
+$('backbtn').onclick=()=>go(()=>{if(isPm('紀錄',sub)&&pmMajor!==null) pmMajor=null; else{sub=''; pmMajor=null}});
+$('tilebtn').onclick=()=>{tileEdit=!tileEdit; render()};
+
+/* ---- 紀錄的「＋」:大(類別)、中(大項)、小(細項)、週期 ---- */
+async function addTop(){
+  const r=await ask({title:'新增類別',placeholder:'例:幫浦保養、治具架',
+    choices:[['pm','分大項(像保養)'],['log','流水帳(像更換備品)'],['fx','治工具(有編號、追狀態)']],
+    hint:'分大項:底下再分大項、細項,看時間軸。流水帳:一筆一行。治工具:一支一支追狀態。',
+    check:(v,t)=>Opts.checkTop(v)});
+  if(!r) return;
+  if(r.choice==='fx') await Opts.addKind(r.value); else await Opts.addRec(r.value,r.choice);
+  await render(); toast(`加了「${r.value}」`);
+}
+async function addMajorAsk(){
+  const r=await ask({title:`新增${catLabel(sub)}大項`,placeholder:'例:爐門保養',
+    check:v=>Opts.check(v,Opts.majorsOf(sub).map(p=>p.name))});
+  if(!r) return;
+  await Opts.addMajor(sub,r.value); await render(); toast(`加了「${r.value}」`);
+}
+async function addSubAsk(){
+  const r=await ask({title:`「${shortM(pmMajor)}」新增細項`,placeholder:'例:齒輪更換',
+    hint:'新增紀錄時就能直接勾選。',check:v=>{const p=Opts.pmOf(sub,pmMajor); return Opts.check(v,p?p.subs:[])}});
+  if(!r) return;
+  await Opts.addSub(sub,pmMajor,r.value); await render(); toast(`加了「${r.value}」`);
+}
+async function cycleAsk(){
+  const p=Opts.pmOf(sub,pmMajor);
+  const r=await ask({title:`「${shortM(pmMajor)}」多久做一次?`,type:'number',placeholder:'天數',value:p&&p.cycle?String(p.cycle):'',
+    ok:'儲存',hint:'留空 = 沒有固定週期。有週期的,快到期標黃、超過標紅。',
+    check:v=>v&&!(parseInt(v,10)>0)?'填一個天數,或留空':null});
+  if(!r) return;
+  await Opts.setCycle(sub,pmMajor,r.value); await render(); toast(r.value?`週期 ${parseInt(r.value,10)} 天`:'已取消週期');
+}
+// 調整區塊:大小、順序。存在 meta,跟著備份走
+async function tileOp(btn){
+  const L=Opts.tiles(), i=L.findIndex(x=>x.key===btn.dataset.k); if(i<0) return;
+  const m=snapFk();
+  if(btn.dataset.size) L[i].size=btn.dataset.size;
+  else{const j=i+Number(btn.dataset.mv); if(j<0||j>=L.length) return;
+    const a=Opts.layout.indexOf(L[i]), b=Opts.layout.indexOf(L[j]);
+    [Opts.layout[a],Opts.layout[b]]=[Opts.layout[b],Opts.layout[a]]}
+  await Opts.save(); await render(); playFk(m);
+}
+// 長按區塊 450ms 進入調整模式,跟拖曳排序同一套手感;手指移動超過 10px 就當成在捲動
+const TP={t:null,y:0,skip:false};
+$('list').addEventListener('touchstart',e=>{
+  if(fam!=='紀錄'||sub||tileEdit||e.touches.length!==1||!e.target.closest('[data-tile]')) return;
+  TP.y=e.touches[0].clientY; clearTimeout(TP.t);
+  TP.t=setTimeout(()=>{TP.t=null; TP.skip=true; tileEdit=true;
+    if(navigator.vibrate){try{navigator.vibrate(25)}catch(_){}} render()},450)},{passive:true});
+$('list').addEventListener('touchmove',e=>{if(TP.t&&Math.abs(e.touches[0].clientY-TP.y)>10){clearTimeout(TP.t);TP.t=null}},{passive:true});
+$('list').addEventListener('touchend',()=>{clearTimeout(TP.t);TP.t=null},{passive:true});
+async function recClick(e){
+  if(TP.skip){TP.skip=false; return true}
+  const z=e.target.closest('[data-size],[data-mv]');
+  if(z&&z.dataset.k){await tileOp(z); return true}
+  if(e.target.closest('[data-addtop]')){addTop(); return true}
+  if(e.target.closest('[data-opts]')){openOpts(); return true}
+  if(e.target.closest('[data-addmajor]')){addMajorAsk(); return true}
+  if(e.target.closest('[data-addsub]')){addSubAsk(); return true}
+  if(e.target.closest('[data-cycle]')){cycleAsk(); return true}
+  const t=e.target.closest('[data-tile]');
+  if(t){if(!tileEdit) go(()=>{sub=t.dataset.tile; pmMajor=null}); return true}
+  const mj=e.target.closest('[data-major]');
+  if(mj){go(()=>{pmMajor=mj.dataset.major}); return true}
+  return false;
+}
 $('list').onclick=async e=>{
   if(DG.blockClick) return;   // 拖完瀏覽器會補一個 click,別讓它去展開卡片
+  if(fam==='紀錄'&&await recClick(e)) return;
   /* 治工具改狀態:原地改,不跳頁。
      NG / 送修 / 待驗證 / 待報廢 一定要講為什麼,跳一個只有一行字的小視窗問;
      使用中、備用、已報廢按下去就算數,錯了用提示上的「復原」退回。 */
@@ -1310,9 +1697,10 @@ function renderForm(){
   // 保養:大項(單選)→ 細項(複選)
   $('rMajor').style.display=pm?'flex':'none';
   $('rMinor').style.display=pm&&form.major?'flex':'none';
-  const majors=[...new Set([...Opts.pm.map(p=>p.name),...(form.major?[form.major]:[])])];
+  // 大項跟著類別走:保養有保養的大項,自己開的分大項類別有自己的
+  const majors=[...new Set([...Opts.majorsOf(form.cat).map(p=>p.name),...(form.major?[form.major]:[])])];
   $('pMajor').innerHTML=majors.map(m=>sp('major',m,esc(m.replace(/保養$/,'')))).join('')+plus('major');
-  const p=Opts.pmOf(form.major);
+  const p=Opts.pmOf(form.cat,form.major);
   const subs=[...new Set([...(p?p.subs:[]),...form.minors])];
   $('pMinor').innerHTML=subs.map(s=>sp('minor',s,esc(s),form.minors.includes(s))).join('')+plus('sub');
   const ar=$('addRow');
@@ -1329,7 +1717,7 @@ function renderForm(){
   $('pSta').parentNode.style.display=q?'none':'flex';
   $('pMac').parentNode.style.display=q?'none':'flex';
 
-  const noun=form.family==='待辦'?'待辦':fx?(form.kind||'治工具'):pm?'保養':form.family==='紀錄'?'紀錄':sv?'調查':'進度';
+  const noun=form.family==='待辦'?'待辦':fx?(form.kind||'治工具'):form.family==='紀錄'?catLabel(form.cat):sv?'調查':'進度';
   $('mtitle').textContent=q?`${form.code} → ${form.event}`:(ed?'編輯':'新增')+noun;
   elTxt.placeholder=form.family==='待辦'?'要做什麼?'
     :fx?(FX_ASK[form.event]||'備註(可不填)')
@@ -1351,12 +1739,15 @@ function openForm(it){
     form.id=null; form.family=fam;
     form.cat=(fam==='紀錄'&&subKind()!==null)?'治工具'
       :(fam!=='專案'&&FAM[fam].cats.includes(sub))?sub
+      :fam==='紀錄'?((Opts.recs[0]&&Opts.recs[0].name)||'治工具')   // 從紀錄首頁按＋:預設第一個類別,上面可以換
       :(fam==='待辦'&&FAM.待辦.cats.includes(lastCat)?lastCat:FAM[fam].cats[0]);
     // 正在篩 ECU 主線,要記的多半也是那台。站別本來就延續上次選的。
     if(flt.sta&&flt.sta!==NONE) form.sta=flt.sta;
     form.mac=(flt.mac&&flt.mac!==NONE)?flt.mac:''; form.code=''; form.event='使用中';
     // 種類、大項同理:正在看飛靶那一頁,要加的就是飛靶
-    form.kind=subKind()??(Opts.kinds[0]||''); form.major=flt.major||''; form.minors=[];
+    form.kind=subKind()??(Opts.kinds[0]||'');
+    // 正在看某個大項的時間軸,要記的就是那一項
+    form.major=fam==='紀錄'&&isPm('紀錄',form.cat)&&pmMajor?pmMajor:''; form.minors=[];
     form.detail=''; form.ecd=null;
     elTxt.value=''; elCode.value=''; elDet.value=''; elEcd.value='';
   }
@@ -1392,13 +1783,14 @@ $('modal').addEventListener('click',e=>{
     form.minors=form.minors.includes(v)?form.minors.filter(x=>x!==v):[...form.minors,v];
   }else{
     if(k==='major'&&v!==form.major) form.minors=[];   // 換了大項,上一個大項的細項不能留著
+    if(k==='cat'&&v!==form.cat){form.major=''; form.minors=[]}   // 換了類別,大項也不是同一套了
     if(k==='code'||k==='event') elErr.classList.remove('on');
     form[k]=v;
   }
   renderForm()});
 async function addOpt(){
   const v=$('addIn').value.trim(), w=form.adding;
-  const err=w==='kind'?await Opts.addKind(v):w==='major'?await Opts.addMajor(v):await Opts.addSub(form.major,v);
+  const err=w==='kind'?await Opts.addKind(v):w==='major'?await Opts.addMajor(form.cat,v):await Opts.addSub(form.cat,form.major,v);
   if(err){elErr.textContent=err; elErr.classList.add('on'); return}
   if(w==='kind') form.kind=v;
   else if(w==='major'){form.major=v; form.minors=[]}
@@ -1443,12 +1835,15 @@ $('save').onclick=async()=>{
     // 改了類別後別讓它從當前篩選裡消失
     if(form.family==='待辦'&&sub!=='全部'&&sub!==form.cat) sub=form.cat;
     if(fx) sub='fx:'+form.kind;   // 改了種類,跟著去它的新分頁,不然它就從眼前消失了
+    if(pm&&pmMajor!==null) pmMajor=form.major;   // 改了大項,跟著去新的時間軸
     open=fx?'fx:'+form.code:id; await render(); toast('已更新');
   }else{
     const q=form.quick;
     await Data.add({...form,text:t});
     close(); fam=form.family;
     sub=(form.family==='專案'||form.family==='調查')?'全部':fx?'fx:'+form.kind:form.cat;
+    // 記完直接看到它:分大項的跳到那個大項的時間軸
+    if(form.family==='紀錄') pmMajor=pm?form.major:null;
     open=fx?'fx:'+form.code:null; await render();
     toast(q?`${form.code} → ${form.event}`:fx?`加了 ${form.code}`:'記下了');
   }
@@ -1572,7 +1967,7 @@ async function ingest(data){
       if(c&&c.name&&!Cats.names().includes(c.name)) await Cats.add(c.name);
   // 治工具種類、保養大項和週期也一起還原,只補不蓋
   if(data&&data.opts) await Opts.merge(data.opts);
-  await Cats.reconcile(await Store.all());
+  await Cats.reconcile(await Store.all()); await Opts.reconcile(await Store.all());
   return add?`匯入 ${add} 筆${skip?`,${skip} 筆已存在`:''}`:'沒有新資料要匯入';
 }
 
@@ -1582,7 +1977,7 @@ async function exportAll(){
   const d=new Date();
   const stamp=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
   const blob=new Blob([JSON.stringify({source:'工作管理助手',builtAt:d.toISOString(),
-    cats:Cats.list,opts:{kinds:Opts.kinds,pm:Opts.pm},items},null,1)],{type:'application/json'});
+    cats:Cats.list,opts:{kinds:Opts.kinds,pm:Opts.pm,recs:Opts.recs,layout:Opts.layout},items},null,1)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url; a.download=`workmate-${stamp}.json`;
@@ -1685,60 +2080,73 @@ $('clist').onclick=async e=>{
 };
 
 
-/* ---- 紀錄設定:治工具種類、保養大項(週期、細項) ----
-   這兩種清單不切分頁,刪掉一個選項不會讓任何東西消失,
-   所以不用像待辦類別那樣先問搬去哪——刪掉的只是新增時的選項,而且可以復原。 */
+/* ---- 紀錄設定:類別、治工具種類、大項(週期、細項) ----
+   新增在各層的「＋」就做得到;這裡是一次看全部、改週期、刪東西的地方。
+   類別和種類是首頁區塊,底下還有東西就不准刪。大項、細項只是選項,刪了紀錄不會消失,而且給復原。 */
 const oveil=$('oveil');
+const OPCAT=c=>`data-c="${esc(c)}"`;
 function renderOpts(){
-  const fxs=fixtures(all), pms=all.filter(i=>isPm(i.family,i.cat));
+  const fxs=fixtures(all), recs=all.filter(i=>i.family==='紀錄');
   const kn=k=>fxs.filter(f=>f.kind===k).length;
-  const mn=m=>pms.filter(i=>i.major===m).length;
-  $('olist').innerHTML=
-    `<div class="osec">治工具種類</div>`
-    +Opts.kinds.map(k=>`<div class="citem"><b>${esc(k)}</b><span class="cn">${kn(k)} 支</span>
-      <button class="cx" data-dk="${esc(k)}">刪除</button></div>`).join('')
-    +`<div class="crow" style="margin-top:4px;padding-top:0;border:0"><input id="okind" class="oin" placeholder="新種類" maxlength="10"><button class="oadd" data-oadd="kind">新增</button></div>`
-    +`<div class="osec">保養大項 · 週期</div>`
-    +`<div class="dhint">週期留空 = 沒有固定週期。有填的超過了會標紅,也會進日報提醒。</div>`
-    +Opts.pm.map(p=>`<div class="citem col"><div class="chead"><b>${esc(p.name)}</b>
-        <span class="ocy">每 <input type="number" inputmode="numeric" min="1" data-cy="${esc(p.name)}" value="${p.cycle??''}"> 天</span>
-        <button class="cx" data-dm="${esc(p.name)}">刪除</button></div>
-        <div class="dates">${mn(p.name)} 筆紀錄</div>
-        <div class="ochips">${p.subs.map(s=>`<span>${esc(s)}<button data-ds="${esc(s)}" data-dsm="${esc(p.name)}" aria-label="刪除">×</button></span>`).join('')
-          ||'<span style="padding:4px 10px;color:#A6B0AC;background:none">還沒有細項,新增保養時按「＋」加</span>'}</div></div>`).join('')
-    +`<div class="crow" style="margin-top:4px;padding-top:0;border:0"><input id="omajor" class="oin" placeholder="新大項" maxlength="10"><button class="oadd" data-oadd="major">新增</button></div>`;
+  const cn=c=>recs.filter(i=>i.cat===c).length;
+  const mn=(c,m)=>recs.filter(i=>i.cat===c&&i.major===m).length;
+  const row=(name,n,attr,unit)=>`<div class="citem"><b>${esc(name)}</b><span class="cn">${n} ${unit}</span>
+      <button class="cx" ${attr}>刪除</button></div>`;
+  let h=`<div class="osec">紀錄類別</div>`
+    +Opts.recs.map(r=>row(`${r.label} · ${REC_TYPES[r.type]}`,cn(r.name),`data-dr="${esc(r.name)}"`,'筆')).join('')
+    +`<div class="osec">治工具種類</div>`
+    +Opts.kinds.map(k=>row(k,kn(k),`data-dk="${esc(k)}"`,'支')).join('')
+    +`<div class="dhint">新增類別、種類:回到紀錄首頁按「＋ 新增類別」。</div>`;
+  for(const r of Opts.recs.filter(r=>r.type==='pm')){
+    h+=`<div class="osec">${esc(r.label)}的大項 · 週期</div>`
+      +Opts.majorsOf(r.name).map(p=>`<div class="citem col"><div class="chead"><b>${esc(p.name)}</b>
+        <span class="ocy">每 <input type="number" inputmode="numeric" min="1" data-cy="${esc(p.name)}" ${OPCAT(r.name)} value="${p.cycle??''}"> 天</span>
+        <button class="cx" data-dm="${esc(p.name)}" ${OPCAT(r.name)}>刪除</button></div>
+        <div class="dates">${mn(r.name,p.name)} 筆紀錄</div>
+        <div class="ochips">${p.subs.map(s=>`<span>${esc(s)}<button data-ds="${esc(s)}" data-dsm="${esc(p.name)}" ${OPCAT(r.name)} aria-label="刪除">×</button></span>`).join('')
+          ||'<span style="padding:4px 10px;color:#A6B0AC;background:none">還沒有細項</span>'}</div></div>`).join('')
+      +`<div class="crow" style="margin-top:4px;padding-top:0;border:0"><input class="oin" data-newmajor="${esc(r.name)}" placeholder="新大項" maxlength="10"><button class="oadd" data-oadd="${esc(r.name)}">新增</button></div>`;
+  }
+  $('olist').innerHTML=h+`<div class="dhint">週期留空 = 沒有固定週期。有填的,快到期標黃、超過標紅,也會進日報提醒。</div>`;
 }
 function openOpts(){$('oerr').classList.remove('on'); renderOpts(); oveil.classList.add('on')}
 $('oclose').onclick=()=>oveil.classList.remove('on');
 oveil.onclick=e=>{if(e.target===oveil) oveil.classList.remove('on')};
 $('olist').addEventListener('change',async e=>{
   const c=e.target.closest('[data-cy]'); if(!c) return;
-  await Opts.setCycle(c.dataset.cy,c.value); await render(); toast('週期已更新')});
+  await Opts.setCycle(c.dataset.c,c.dataset.cy,c.value); await render(); toast('週期已更新')});
 $('olist').onclick=async e=>{
   const oerr=$('oerr'); oerr.classList.remove('on');
+  const fail=m=>{oerr.textContent=m; oerr.classList.add('on')};
   const ad=e.target.closest('[data-oadd]');
   if(ad){
-    const w=ad.dataset.oadd, inp=$(w==='kind'?'okind':'omajor');
-    const err=w==='kind'?await Opts.addKind(inp.value):await Opts.addMajor(inp.value);
-    if(err){oerr.textContent=err; oerr.classList.add('on'); return}
+    const cat=ad.dataset.oadd, inp=[...document.querySelectorAll('[data-newmajor]')].find(x=>x.dataset.newmajor===cat);
+    const err=await Opts.addMajor(cat,inp?inp.value:'');
+    if(err) return fail(err);
     renderOpts(); await render(); return}
   // 刪除都給復原:放回原本的位置,連週期和細項一起
   const undo=(msg,fn)=>{renderOpts(); render(); toast(msg,{label:'復原',fn:async()=>{
     await fn(); await Opts.save(); renderOpts(); await render()}})};
   const dk=e.target.closest('[data-dk]');
   if(dk){const k=dk.dataset.dk, at=Opts.kinds.indexOf(k);
-    /* 種類現在是分頁了。底下還有東西就刪不掉——刪了它也會因為「資料裡有」又長回來,
+    /* 種類是首頁區塊。底下還有東西就刪不掉——刪了它也會因為「資料裡有」又長回來,
        與其讓人以為刪不乾淨,不如直接講清楚要先做什麼 */
     const n=fixtures(all).filter(f=>f.kind===k).length;
-    if(n){oerr.textContent=`「${k}」底下還有 ${n} 支(含已報廢),先把它們編輯成別的種類才能刪`;
-      oerr.classList.add('on'); return}
+    if(n) return fail(`「${k}」底下還有 ${n} 支(含已報廢),先把它們編輯成別的種類才能刪`);
     await Opts.delKind(k); return undo(`已刪除「${k}」`,()=>Opts.kinds.splice(at,0,k))}
+  const dr=e.target.closest('[data-dr]');
+  if(dr){const at=Opts.recs.findIndex(r=>r.name===dr.dataset.dr), keep=Opts.recs[at];
+    const n=all.filter(i=>i.family==='紀錄'&&i.cat===keep.name).length;
+    if(n) return fail(`「${keep.label}」底下還有 ${n} 筆,先把它們刪掉或改到別的類別才能刪`);
+    if(Opts.recs.length<=1) return fail('至少要留一個類別');
+    if(sub===keep.name){sub=''; pmMajor=null}
+    await Opts.delRec(keep.name); return undo(`已刪除「${keep.label}」`,()=>Opts.recs.splice(at,0,keep))}
   const dm=e.target.closest('[data-dm]');
-  if(dm){const at=Opts.pm.findIndex(p=>p.name===dm.dataset.dm), keep=Opts.pm[at];
-    await Opts.delMajor(keep.name); return undo(`已刪除「${keep.name}」`,()=>Opts.pm.splice(at,0,keep))}
+  if(dm){const c=dm.dataset.c, list=Opts.majorsOf(c), at=list.findIndex(p=>p.name===dm.dataset.dm), keep=list[at];
+    await Opts.delMajor(c,keep.name); return undo(`已刪除「${keep.name}」`,()=>Opts.majorsOf(c).splice(at,0,keep))}
   const ds=e.target.closest('[data-ds]');
-  if(ds){const m=ds.dataset.dsm, x=ds.dataset.ds, p=Opts.pmOf(m), at=p?p.subs.indexOf(x):-1;
-    await Opts.delSub(m,x); return undo(`已刪除「${x}」`,()=>{const q=Opts.pmOf(m); if(q) q.subs.splice(at,0,x)})}
+  if(ds){const c=ds.dataset.c, m=ds.dataset.dsm, x=ds.dataset.ds, p=Opts.pmOf(c,m), at=p?p.subs.indexOf(x):-1;
+    await Opts.delSub(c,m,x); return undo(`已刪除「${x}」`,()=>{const q=Opts.pmOf(c,m); if(q) q.subs.splice(at,0,x)})}
 };
 
 /* ---- Service Worker(file:// 開啟時註冊不了,靜靜跳過) ---- */
@@ -1814,7 +2222,7 @@ if('serviceWorker'in navigator&&location.protocol.startsWith('http')){
     ];
     for(const [sta,mac,major,minors,text,d] of PM) await put({cat:'保養紀錄',sta,mac,major,minors,text,d});
     // 示範用:承液盤 60 天一次,才看得到「超過週期」長什麼樣子
-    if(Opts.pmOf('天車承液盤保養')&&Opts.pmOf('天車承液盤保養').cycle==null) await Opts.setCycle('天車承液盤保養',60);
+    const cy=Opts.pmOf('保養紀錄','天車承液盤保養'); if(cy&&cy.cycle==null) await Opts.setCycle('保養紀錄','天車承液盤保養',60);
   }
   // ?import:區網測試時 import.json 就在旁邊,直接吃掉;抓不到就把資料視窗打開讓人挑檔案
   let imported='';
@@ -1826,7 +2234,7 @@ if('serviceWorker'in navigator&&location.protocol.startsWith('http')){
     }catch(_){ await openData() }
   }
 
-  await Cats.reconcile(await Store.all());
+  await Cats.reconcile(await Store.all()); await Opts.reconcile(await Store.all());
   if(!Cats.names().includes(sub)) sub=Cats.names()[0]||'工作';
   await render();
   if(imported) toast(imported);
