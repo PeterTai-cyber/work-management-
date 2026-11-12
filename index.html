@@ -486,6 +486,19 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
       <div class="srow"><button id="pcancel">取消</button><button class="save" id="pok">新增</button></div>
     </div>
   </div>
+  <!-- 雲端同步設定:網址和密碼只存在這支手機,不進程式碼 -->
+  <div class="veil" id="sveil">
+    <div class="modal">
+      <div class="mtitle">雲端同步(Google 試算表)</div>
+      <div class="dhint">貼上 Apps Script 部署出來的<b>網頁應用程式網址</b>,和你在程式裡設的<b>密碼</b>。
+        有網路時會自動上傳,試算表就跟手機一樣。</div>
+      <input id="surl" class="oin" style="width:100%;margin-top:8px;font-size:14px" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocapitalize="off">
+      <input id="spw" class="oin" style="width:100%;margin-top:8px" placeholder="密碼" type="password" autocomplete="off">
+      <div class="dhint" id="smsg" style="margin-top:8px"></div>
+      <div class="drow2" style="margin-top:6px"><button id="stest">測試連線</button><button class="save" id="ssave">儲存並同步</button></div>
+      <div class="srow"><button id="sclose" style="flex:1">取消</button><button id="soff" style="flex:0 0 auto;color:var(--rust)">停止同步</button></div>
+    </div>
+  </div>
   <div class="veil" id="oveil">
     <div class="modal">
       <div class="mtitle">紀錄設定</div>
@@ -502,7 +515,9 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
       <div class="dwarn">資料只存在這支手機裡,還沒有雲端。<br>
         清除瀏覽器資料、換手機、手機壞掉都會全部不見——<strong>定期匯出一份存起來。</strong></div>
       <div class="dhint" id="imsg">匯入時已經在裡面的項目會自動跳過,重複匯入不會變成兩筆。</div>
-      <div class="dhint" style="margin-top:4px"><b>Excel</b>:電腦上看的,每一類一張表。手機上按「存到雲端硬碟」,在分享選單選「雲端硬碟」。</div>
+      <div class="dhint"><b>雲端同步</b>:<span id="sstat"></span></div>
+      <div class="drow2"><button id="isync">設定雲端同步</button></div>
+      <div class="dhint" style="margin-top:10px"><b>Excel</b>:電腦上看的,每一類一張表。手機上按「存到雲端硬碟」,在分享選單選「雲端硬碟」。</div>
       <div class="drow2">
         <button class="save" id="ixls">存到雲端硬碟</button>
         <button id="ixdl">下載 Excel</button>
@@ -784,6 +799,7 @@ const Opts={
       .map(x=>({key:x.key,size:x.size,c:TILE_COLORS.includes(x.c)?x.c:null})):[];
     if(!seeded){await Store.setMeta('pmSeedV2',1); await this.save()}},
   async save(){
+    if(typeof Sync!=='undefined') Sync.metaDirty=true;   // 週期、類別改了,試算表上的總覽也要跟著重畫
     await Store.setMeta('fxKinds',this.kinds);
     await Store.setMeta('pmItems',this.pm);
     await Store.setMeta('recCats',this.recs.map(r=>({name:r.name,label:r.label,type:r.type,
@@ -933,34 +949,70 @@ const Data={
   async pending(){return (await Store.all()).filter(i=>i.dirty)}
 };
 
-/* ===== 3. 同步(接真後端只改 push 裡的那段 await) ===== */
-// 指紋:送出前後比對同一筆有沒有被改過。相同才清 dirty。
-const sig=i=>`${i.updated}|${i.edited||0}|${i.deleted?1:0}|${i.status}`;
-const Sync={online:true,busy:false,
-  async push(){
-    if(this.busy||!this.online) return;
-    const q=await Data.pending(); if(!q.length) return;
-    this.busy=true; await render();
+/* ===== 3. 同步:推到使用者自己的 Google 試算表(backend/Code.gs) =====
+   後端網址和密碼是使用者在 app 裡填的,只存在這支手機的 meta 表——
+   儲存庫是公開的,不能寫在程式裡。沒設定就不同步(也不假裝同步),資料照樣只在手機。
+
+   每次送「全部」:原始資料(連墓碑)+ 人看的表。試算表因此永遠等於手機,
+   不會因為哪一次漏送就對不起來。幾百筆的量,一次幾百 KB,只有在有東西改過時才送。
+   CORS 用 text/plain 送,瀏覽器不會先發預檢請求(Apps Script 不回預檢)。 */
+// 指紋:送出前後比對同一筆有沒有被改過。相同才清 dirty。order 也算——拖曳排序也要送上去
+const sig=i=>`${i.updated}|${i.edited||0}|${i.deleted?1:0}|${i.status}|${i.order}`;
+const Sync={online:true,busy:false,cfg:null,last:null,err:'',fails:0,retryAt:0,metaDirty:false,
+  get on(){return this.online&&navigator.onLine!==false},
+  async load(){
+    const c=await Store.getMeta('syncCfg');
+    this.cfg=c&&typeof c.url==='string'&&c.url&&typeof c.pw==='string'?c:null;
+    this.last=await Store.getMeta('syncLast')||null},
+  async save(cfg){
+    this.cfg=cfg; await Store.setMeta('syncCfg',cfg);
+    this.err=''; this.fails=0; this.retryAt=0},
+  async post(body){
+    const res=await fetch(this.cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({password:this.cfg.pw,...body}),redirect:'follow'});
+    let j; try{j=await res.json()}catch(_){throw new Error('後端沒有回應正確的資料,檢查網址是不是「網頁應用程式」那個')}
+    if(!j.ok) throw new Error(j.error||'後端回報錯誤');
+    return j},
+  // 設定時按「測試」:只問一聲,不送資料
+  async ping(cfg){const keep=this.cfg; this.cfg=cfg; try{return await this.post({ping:true})}finally{this.cfg=keep}},
+  async push(force){
+    if(this.busy||!this.cfg||!this.on) return;
+    if(!force&&Date.now()<this.retryAt) return;
+    const q=await Data.pending();
+    if(!q.length&&!this.metaDirty&&!force) return;
+    this.busy=true; this.metaDirty=false; await render();
     const sent=new Map(q.map(i=>[i.id,sig(i)]));
-
-    await new Promise(r=>setTimeout(r,900));   // ← TODO: 換成真的 fetch(後端端點)
-
+    let ok=false;
+    try{
+      const items=(await Store.all()).map(({rows,notes,...x})=>x);   // rows/notes 是讀取時算的,不用送
+      const sheets=await buildSheets();   // 人看的表跟匯出 Excel 是同一份,只寫一次
+      await this.post({items,sheets});
+      ok=true; this.err=''; this.fails=0; this.retryAt=0;
+      this.last=Date.now(); await Store.setMeta('syncLast',this.last);
+    }catch(e){
+      // 失敗就保留 dirty,等一下再試;越失敗等越久,最多五分鐘
+      this.err=e&&e.message||'連不上'; this.fails++; this.metaDirty=this.metaDirty||!q.length;
+      this.retryAt=Date.now()+Math.min(300e3,15e3*2**(this.fails-1));
+    }
     this.busy=false;
-    if(!this.online) return render();
-    const now=new Map((await Store.all()).map(x=>[x.id,x]));
     let n=0;
-    for(const [id,s] of sent){
-      const cur=now.get(id);
-      if(!cur) continue;
-      // 送出這 900ms 之間又被編輯過:保留 dirty,下一輪重送。
-      // 寧可重複送一筆(後端用 id 覆蓋),也不能用舊快照蓋掉新編輯。
-      if(s!==sig(cur)) continue;
-      await Store.put({...cur,dirty:false}); n++;
+    if(ok){
+      const now=new Map((await Store.all()).map(x=>[x.id,x]));
+      for(const [id,s] of sent){
+        const cur=now.get(id);
+        if(!cur) continue;
+        // 送出這段時間又被編輯過:保留 dirty,下一輪重送。
+        // 寧可重複送一筆(後端用 id 覆蓋),也不能用舊快照蓋掉新編輯。
+        if(s!==sig(cur)) continue;
+        await Store.put({...cur,dirty:false}); n++;
+      }
     }
     await render();
-    if(n) toast(`已同步 ${n} 筆`);
+    if(ok&&(n||force)) toast(force?'已同步到試算表':`已同步 ${n} 筆`);
   }};
-setInterval(()=>Sync.push(),4000);
+setInterval(()=>Sync.push(),5000);
+addEventListener('online',()=>{Sync.retryAt=0; Sync.push()});
+addEventListener('offline',()=>render());
 
 /* ===== 介面 ===== */
 let fam='待辦', sub='工作', open=null, all=[];
@@ -1441,13 +1493,20 @@ async function render(){
      一切正常時顯示「已同步」是零資訊,卻固定吃掉 43px——
      那是半張卡片。沒出現本身就是「都上去了」的意思。 */
   const sb=$('syncbar');
-  const msg=!Sync.online?(pend?`離線中 · ${pend} 筆待上傳`:'離線中 · 記錄照常')
-    :Sync.busy?'同步中…':pend?`未同步 ${pend} 筆`:'';
+  /* 沒設定雲端同步就不講「未同步」——那不是暫時的狀態,天天掛著只是噪音。
+     要不要設定,在 ⋯ 裡面講。設定了之後才報:離線、同步中、失敗、還有幾筆沒上去 */
+  const msg=!Sync.cfg?''
+    :!Sync.on?(pend?`離線中 · ${pend} 筆待上傳`:'離線中 · 記錄照常')
+    :Sync.busy?'同步中…'
+    :Sync.err&&pend?`上傳失敗 · ${pend} 筆還在手機上`
+    :pend?`未同步 ${pend} 筆`:'';
   if(!msg&&!DEV){sb.style.display='none'; sb.innerHTML=''}
   else{
     sb.style.display='flex';
-    sb.className='syncbar '+(!Sync.online?'off':pend?'pend':'');
+    sb.className='syncbar '+(!Sync.on||Sync.err?'off':pend?'pend':'');
+    sb.onclick=Sync.err?()=>openSync():null;
     sb.innerHTML=`<span class="dot ${Sync.busy?'spin':''}"></span><span>${msg||'已同步'}</span>`
+      +(Sync.err&&!Sync.busy?'<span style="margin-left:auto;text-decoration:underline">看原因</span>':'')
       +(DEV?`<button class="netbtn" id="net">${Sync.online?'模擬斷線':'恢復連線'}</button>`:'');
     if(DEV) $('net').onclick=e=>{e.stopPropagation();
       Sync.online=!Sync.online; render(); if(Sync.online) Sync.push()};
@@ -2104,7 +2163,8 @@ const XL=(()=>{
 
 /* 把 app 裡的東西排成「人在電腦上會想看的樣子」。
    第一張是總覽:要處理的事先講,跟 app 的區塊首頁同一個邏輯。 */
-async function buildWorkbook(){
+// 人看的表。匯出 Excel 和同步到試算表用的是同一份,兩邊才不會長得不一樣
+async function buildSheets(){
   const items=await Data.list();
   const D=t=>t?{v:t,date:true}:'';
   const where=i=>[i.sta||'',i.mac||''];
@@ -2172,6 +2232,10 @@ async function buildWorkbook(){
       ...(sum.length?sum.map(r=>[r[0],{v:r[1],s:'b'},{v:r[2],s:'bad'},r[3],r[4]]):[[{v:'沒有要處理的事',s:'ok'}]]),[],
       [{v:'各工作表',s:'title'}],H(['工作表','筆數']),
       ...sheets.map(s=>[{v:s.name,s:'b'},s.rows.length])]});
+  return sheets;
+}
+async function buildWorkbook(){
+  const sheets=await buildSheets(), now=new Date();
   const stamp=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
   return new File([XL.book(sheets)],`workmate-${stamp}.xlsx`,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
 }
@@ -2198,11 +2262,47 @@ async function openData(){
   const pend=items.filter(i=>i.dirty).length;
   $('dstat').textContent=`目前 ${live} 筆` + (pend?` · ${pend} 筆還沒上傳`:'');
   $('imsg').textContent='匯入時已經在裡面的項目會自動跳過,重複匯入不會變成兩筆。';
+  const t=Sync.last?new Date(Sync.last):null;
+  $('sstat').textContent=!Sync.cfg?'還沒設定。設定後,電腦上的 Google 試算表會自動跟手機同步。'
+    :Sync.err?`上次失敗:${Sync.err}`
+    :t?`已連線 · 最後同步 ${md(+t)} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`:'已設定,等待第一次同步';
+  $('isync').textContent=Sync.cfg?'同步設定':'設定雲端同步';
   iveil.classList.add('on');
 }
 $('morebtn').onclick=openData;
 $('iclose').onclick=()=>iveil.classList.remove('on');
 iveil.onclick=e=>{if(e.target===iveil) iveil.classList.remove('on')};
+/* ---- 雲端同步設定 ---- */
+const sveil=$('sveil');
+function openSync(){
+  $('surl').value=Sync.cfg?Sync.cfg.url:''; $('spw').value=Sync.cfg?Sync.cfg.pw:'';
+  $('smsg').textContent=Sync.err?`上次失敗:${Sync.err}`:'';
+  $('soff').style.display=Sync.cfg?'':'none';
+  iveil.classList.remove('on'); sveil.classList.add('on');
+}
+const readSync=()=>{
+  const url=$('surl').value.trim(), pw=$('spw').value;
+  if(!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url)){$('smsg').textContent='網址要是 https://script.google.com/macros/s/…/exec 這種'; return null}
+  if(!pw){$('smsg').textContent='密碼不能空白'; return null}
+  return {url,pw}};
+$('isync').onclick=openSync;
+$('sclose').onclick=()=>sveil.classList.remove('on');
+sveil.onclick=e=>{if(e.target===sveil) sveil.classList.remove('on')};
+$('stest').onclick=async()=>{
+  const c=readSync(); if(!c) return;
+  $('smsg').textContent='連線中…';
+  try{const j=await Sync.ping(c); $('smsg').textContent=`連得上 ✓ 試算表裡目前有 ${j.rows} 筆`}
+  catch(e){$('smsg').textContent='連不上:'+e.message}
+};
+$('ssave').onclick=async()=>{
+  const c=readSync(); if(!c) return;
+  await Sync.save(c); sveil.classList.remove('on');
+  toast('開始同步…'); await Sync.push(true);   // 第一次把手機裡全部的東西送上去
+};
+$('soff').onclick=async()=>{
+  await Store.setMeta('syncCfg',null); Sync.cfg=null; Sync.err='';
+  sveil.classList.remove('on'); await render(); toast('已停止同步,資料只留在手機');
+};
 $('ixls').onclick=async()=>{
   try{const r=await shareExcel(); if(r==='cancel') return;
     iveil.classList.remove('on'); toast(r==='shared'?'已送出 Excel':'已下載 Excel')}
@@ -2372,7 +2472,7 @@ $('olist').onclick=async e=>{
 (()=>{
   const veils=[...document.querySelectorAll('.veil')];
   // 每個視窗自己的「取消」鍵:走它原本的關法,該清的狀態才會清乾淨
-  const CANCEL={veil:'cancel',pveil:'pcancel',cveil:'cclose',oveil:'oclose',iveil:'iclose'};
+  const CANCEL={veil:'cancel',pveil:'pcancel',cveil:'cclose',oveil:'oclose',iveil:'iclose',sveil:'sclose'};
   let pushed=0, skip=0;
   const openOnes=()=>veils.filter(v=>v.classList.contains('on'));
   new MutationObserver(()=>{
@@ -2403,7 +2503,7 @@ if('serviceWorker'in navigator&&location.protocol.startsWith('http')){
 
 /* ---- 起動 ---- */
 (async()=>{
-  await Store.init();
+  await Store.init(); await Sync.load();
   // 示範資料只在網址帶 ?demo 時灌。正式用是空的開始。
   if(new URLSearchParams(location.search).has('demo')&&!(await Store.all()).length){
     const S=[
