@@ -502,8 +502,14 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
       <div class="dwarn">資料只存在這支手機裡,還沒有雲端。<br>
         清除瀏覽器資料、換手機、手機壞掉都會全部不見——<strong>定期匯出一份存起來。</strong></div>
       <div class="dhint" id="imsg">匯入時已經在裡面的項目會自動跳過,重複匯入不會變成兩筆。</div>
+      <div class="dhint" style="margin-top:4px"><b>Excel</b>:電腦上看的,每一類一張表。手機上按「存到雲端硬碟」,在分享選單選「雲端硬碟」。</div>
       <div class="drow2">
-        <button class="save" id="iexp">匯出備份</button>
+        <button class="save" id="ixls">存到雲端硬碟</button>
+        <button id="ixdl">下載 Excel</button>
+      </div>
+      <div class="dhint" style="margin-top:10px"><b>備份</b>:給這個 app 還原用的,換手機時用它。</div>
+      <div class="drow2">
+        <button id="iexp">匯出備份</button>
         <button id="ipick">匯入檔案</button>
       </div>
       <div class="srow"><button id="iclose" style="flex:1">關閉</button></div>
@@ -2016,6 +2022,176 @@ async function exportAll(){
   return items.length;
 }
 
+/* ---- 匯出 Excel ----
+   JSON 備份是給 app 自己還原用的,人看不懂。這裡另外產一份電腦上一打開就看得懂的 .xlsx:
+   每一類一張工作表、標題列凍結、可以篩選排序,日期是真的日期,狀態用底色標出來。
+   自己寫 xlsx(其實就是一包 XML 壓成 zip),不靠外部套件——離線也匯得出來,也不用多一個要維護的東西。
+   這份只是「看」的,不能拿來匯入;要還原請用「匯出備份」那份 JSON。 */
+const XL=(()=>{
+  const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+  const crc32=b=>{let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0};
+  // 只用「不壓縮」的 zip,Excel 照樣讀得懂,程式短很多
+  function zip(files){
+    const enc=new TextEncoder(), parts=[], cen=[]; let off=0;
+    const u16=v=>[v&255,(v>>>8)&255], u32=v=>[v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255];
+    for(const [name,text] of files){
+      const nb=enc.encode(name), db=enc.encode(text), c=crc32(db);
+      const head=[...u32(0x04034b50),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(c),...u32(db.length),...u32(db.length),...u16(nb.length),...u16(0)];
+      parts.push(new Uint8Array(head),nb,db);
+      cen.push(new Uint8Array([...u32(0x02014b50),...u16(20),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(c),...u32(db.length),...u32(db.length),...u16(nb.length),...u16(0),...u16(0),...u16(0),...u16(0),...u32(0),...u32(off)]),nb);
+      off+=head.length+nb.length+db.length;
+    }
+    const csize=cen.reduce((a,b)=>a+b.length,0);
+    const end=new Uint8Array([...u32(0x06054b50),...u16(0),...u16(0),...u16(files.length),...u16(files.length),...u32(csize),...u32(off),...u16(0)]);
+    return new Blob([...parts,...cen,end],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  }
+  const x=s=>String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const col=n=>{let s='';n++;while(n){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26)}return s};
+  // 樣式編號:對應下面 styles.xml 的 cellXfs 順序
+  const ST={'':0,h:1,d:2,w:3,bad:4,warn:5,ok:6,info:7,mute:8,b:9,title:10,dbad:11};
+  // 時間戳 → Excel 日期序號(以手機當地時區的那一天為準)
+  const serial=t=>{const d=new Date(t);return (Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/864e5)+25569};
+  function sheet(sh){
+    // 總覽那張自己排版(標題在最上面),其他張第一列是欄位名稱
+    const rows=sh.noHeader?sh.rows:[sh.cols.map(c=>({v:c.h,s:'h'})),...sh.rows];
+    const xml=rows.map((r,ri)=>`<row r="${ri+1}">${r.map((c,ci)=>{
+      if(c==null||c==='') return '';
+      const o=typeof c==='object'?c:{v:c}, ref=col(ci)+(ri+1), s=ST[o.s||(o.date?'d':'')]||0;
+      if(o.date) return `<c r="${ref}" s="${o.s?ST[o.s]:ST.d}"><v>${serial(o.v)}</v></c>`;
+      if(typeof o.v==='number'&&isFinite(o.v)) return `<c r="${ref}" s="${s}"><v>${o.v}</v></c>`;
+      return `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${x(o.v)}</t></is></c>`}).join('')}</row>`).join('');
+    const last=col(sh.cols.length-1)+rows.length;
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheetViews><sheetView workbookViewId="0">${sh.noHeader?'':'<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>'}</sheetView></sheetViews>
+<cols>${sh.cols.map((c,i)=>`<col min="${i+1}" max="${i+1}" width="${c.w||12}" customWidth="1"/>`).join('')}</cols>
+<sheetData>${xml}</sheetData>${sh.rows.length&&!sh.noHeader?`<autoFilter ref="A1:${last}"/>`:''}</worksheet>`;
+  }
+  const STYLES=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="1"><numFmt numFmtId="164" formatCode="yyyy/mm/dd"/></numFmts>
+<fonts count="5"><font><sz val="11"/><name val="Microsoft JhengHei"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Microsoft JhengHei"/></font><font><b/><sz val="11"/><color rgb="FF9C1C1C"/><name val="Microsoft JhengHei"/></font><font><sz val="11"/><color rgb="FF7A8580"/><name val="Microsoft JhengHei"/></font><font><b/><sz val="11"/><name val="Microsoft JhengHei"/></font></fonts>
+<fills count="7"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF16211F"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF8D7D3"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFBEFD2"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDCEFE5"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDCE6F4"/></patternFill></fill></fills>
+<borders count="2"><border/><border><bottom style="thin"><color rgb="FFD8DDD8"/></bottom></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="12">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyBorder="1"><alignment vertical="top"/></xf>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="0" applyFont="1" applyFill="1"><alignment vertical="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="1" applyNumberFormat="1" applyBorder="1"><alignment horizontal="left" vertical="top"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>
+<xf numFmtId="0" fontId="2" fillId="3" borderId="1" applyFont="1" applyFill="1" applyBorder="1"><alignment vertical="top"/></xf>
+<xf numFmtId="0" fontId="0" fillId="4" borderId="1" applyFill="1" applyBorder="1"><alignment vertical="top"/></xf>
+<xf numFmtId="0" fontId="0" fillId="5" borderId="1" applyFill="1" applyBorder="1"><alignment vertical="top"/></xf>
+<xf numFmtId="0" fontId="0" fillId="6" borderId="1" applyFill="1" applyBorder="1"><alignment vertical="top"/></xf>
+<xf numFmtId="0" fontId="3" fillId="0" borderId="1" applyFont="1" applyBorder="1"><alignment vertical="top"/></xf>
+<xf numFmtId="0" fontId="4" fillId="0" borderId="1" applyFont="1" applyBorder="1"><alignment vertical="top"/></xf>
+<xf numFmtId="0" fontId="4" fillId="0" borderId="0" applyFont="1"><alignment vertical="top"/></xf>
+<xf numFmtId="164" fontId="2" fillId="3" borderId="1" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="left" vertical="top"/></xf>
+</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  function book(sheets){
+    const files=[
+      ['[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`],
+      ['_rels/.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+      ['xl/workbook.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s,i)=>`<sheet name="${x(s.name.slice(0,31).replace(/[\\\/?*\[\]:]/g,' '))}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets></workbook>`],
+      ['xl/_rels/workbook.xml.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+      ['xl/styles.xml',STYLES],
+      ...sheets.map((s,i)=>[`xl/worksheets/sheet${i+1}.xml`,sheet(s)])
+    ];
+    return zip(files);
+  }
+  return {book};
+})();
+
+/* 把 app 裡的東西排成「人在電腦上會想看的樣子」。
+   第一張是總覽:要處理的事先講,跟 app 的區塊首頁同一個邏輯。 */
+async function buildWorkbook(){
+  const items=await Data.list();
+  const D=t=>t?{v:t,date:true}:'';
+  const where=i=>[i.sta||'',i.mac||''];
+  const FXS={NG:'bad',送修中:'warn',待驗證:'info',待報廢:'mute',使用中:'ok',備用:'',已報廢:'mute'};
+  const sheets=[], sum=[];
+  // ---- 待辦 ----
+  const todos=items.filter(i=>i.family==='待辦').sort((a,b)=>(a.status===b.status?0:a.status==='已完成'?1:-1)||a.order-b.order);
+  sheets.push({name:'待辦',cols:[{h:'狀態',w:9},{h:'類別',w:9},{h:'站別',w:7},{h:'機台',w:13},{h:'內容',w:46},{h:'建立',w:12},{h:'ECD',w:12},{h:'停滯天數',w:9},{h:'完成',w:12}],
+    rows:todos.map(i=>{const done=i.status==='已完成', over=isOver(i);
+      return [{v:i.status,s:done?'mute':'warn'},i.cat,...where(i),{v:i.text,s:'w'},D(i.created),
+        i.ecd!=null?{v:i.ecd,date:true,s:over?'dbad':''}:'',done?'':{v:days(i.updated),s:days(i.updated)>=7?'bad':''},D(i.doneAt)]})});
+  const openT=todos.filter(i=>OPEN.includes(i.status));
+  for(const c of Cats.names()){const n=openT.filter(i=>i.cat===c).length; if(n) sum.push(['待辦',c,`未結 ${n} 筆`,'',''])}
+  // ---- 治工具:一支一列 + 完整履歷 ----
+  const fs=fixtures(items).sort((a,b)=>(a.kind||'').localeCompare(b.kind||'')||byCode(a,b));
+  if(fs.length){
+    sheets.push({name:'治工具',cols:[{h:'種類',w:9},{h:'編號',w:9},{h:'目前狀態',w:10},{h:'原因 / 說明',w:36},{h:'站別',w:7},{h:'機台',w:13},{h:'這個狀態幾天',w:12},{h:'近90天NG次數',w:13},{h:'最後變更',w:12}],
+      rows:fs.map(f=>{const ng=f.evs.filter(e=>e.event==='NG'&&days(e.at)<=90).length;
+        return [f.kind,{v:f.code,s:'b'},{v:f.st,s:FXS[f.st]||''},{v:f.why,s:'w'},f.sta,f.mac,days(f.since),ng?{v:ng,s:ng>=2?'bad':''}:0,D(f.since)]})});
+    sheets.push({name:'治工具履歷',cols:[{h:'日期',w:12},{h:'種類',w:9},{h:'編號',w:9},{h:'狀態',w:10},{h:'說明',w:40},{h:'站別',w:7},{h:'機台',w:13}],
+      rows:items.filter(i=>isFx(i.family,i.cat)).sort((a,b)=>b.at-a.at).map(e=>[D(e.at),e.kind,{v:e.code,s:'b'},{v:e.event,s:FXS[e.event]||''},{v:e.text,s:'w'},...where(e)])});
+    for(const k of fxKinds()){const n=fs.filter(f=>f.kind===k&&FX_BAD.includes(f.st)).length; if(n) sum.push(['治工具',k,`待處理 ${n} 支`,'',''])}
+  }
+  // ---- 各紀錄類別 ----
+  for(const r of Opts.recs){
+    const rs=items.filter(i=>i.family==='紀錄'&&i.cat===r.name).sort((a,b)=>b.at-a.at);
+    if(r.type==='pm'){
+      // 先一張「各大項 × 機台,上次做是什麼時候」,再一張完整紀錄
+      const rows=[];
+      for(const m of majorStats(r.name,rs)){
+        const by=new Map(); for(const x of m.recs){const k=x.sta+'|'+x.mac; if(!by.has(k)) by.set(k,x)}
+        if(!by.size) rows.push([{v:shortM(m.name),s:'b'},'','',{v:'還沒有紀錄',s:'mute'},'',m.cycle||'',{v:'—',s:'mute'}]);
+        for(const x of by.values()){const d=days(x.at), st=m.cycle?(d>m.cycle?'超過週期':d>=m.cycle-7?'快到期':'正常'):'沒有週期';
+          rows.push([{v:shortM(m.name),s:'b'},x.sta,x.mac,D(x.at),d,m.cycle||'',{v:st,s:st==='超過週期'?'bad':st==='快到期'?'warn':st==='正常'?'ok':'mute'}])}
+      }
+      sheets.push({name:`${r.label}總覽`,cols:[{h:'大項',w:14},{h:'站別',w:7},{h:'機台',w:13},{h:'上次做',w:12},{h:'幾天前',w:8},{h:'週期(天)',w:9},{h:'狀態',w:10}],rows});
+      sheets.push({name:r.label,cols:[{h:'日期',w:12},{h:'大項',w:14},{h:'站別',w:7},{h:'機台',w:13},{h:'細項',w:26},{h:'內容',w:46},{h:'幾天前',w:8}],
+        rows:rs.map(i=>[D(i.at),{v:shortM(i.major),s:'b'},...where(i),{v:i.minors.join('、'),s:'w'},{v:i.text,s:'w'},days(i.at)])});
+      const over=rows.filter(x=>x[6].v==='超過週期');
+      for(const o of over) sum.push([r.label,o[0].v,'超過週期',`${o[1]} ${o[2]}`.trim(),`${o[4]} 天前 / 每 ${o[5]} 天`]);
+    }else{
+      sheets.push({name:r.label,cols:[{h:'日期',w:12},{h:'站別',w:7},{h:'機台',w:13},{h:'內容',w:56}],
+        rows:rs.map(i=>[D(i.at),...where(i),{v:i.text,s:'w'}])});
+    }
+  }
+  // ---- 專案 ----
+  const ps=items.filter(i=>i.family==='專案').sort((a,b)=>a.cat.localeCompare(b.cat)||b.at-a.at);
+  sheets.push({name:'專案',cols:[{h:'專案',w:24},{h:'日期',w:12},{h:'站別',w:7},{h:'進度',w:60}],
+    rows:ps.map(i=>[{v:i.cat,s:'b'},D(i.at),i.sta,{v:i.text,s:'w'}])});
+  for(const p of FAM.專案.cats){const l=ps.find(i=>i.cat===p), d=l?days(l.at):null;
+    if(d===null||d>=14) sum.push(['專案',p,d===null?'沒有進度':`${d} 天沒更新`,'',''])}
+  // ---- 調查:一個量測點一列,電腦上才好做樞紐分析 ----
+  const sv=items.filter(i=>i.family==='調查').sort((a,b)=>b.at-a.at);
+  sheets.push({name:'調查',cols:[{h:'日期',w:12},{h:'調查',w:24},{h:'站別',w:7},{h:'機台',w:13},{h:'位置',w:10},{h:'數值',w:9},{h:'單位',w:8},{h:'備註',w:30}],
+    rows:sv.flatMap(i=>{const base=[D(i.at),{v:i.text,s:'b'},...where(i)];
+      const r=i.rows.map(x=>[...base,x.k,x.v,x.u,'']);
+      return r.length?r.concat(i.notes.length?[[...base,'','','',{v:i.notes.join('\n'),s:'w'}]]:[])
+        :[[...base,'','','',{v:i.notes.join('\n'),s:'w'}]]})});
+  // ---- 總覽放第一張 ----
+  const now=new Date();
+  const H=a=>a.map(v=>({v,s:'h'}));
+  sheets.unshift({name:'總覽',noHeader:true,cols:[{w:12},{w:22},{w:16},{w:16},{w:24}],
+    rows:[[{v:`工作管理助手 · 匯出於 ${fullDate(now)} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,s:'title'}],[],
+      [{v:'要處理的事',s:'title'}],H(['分類','項目','狀況','機台','說明']),
+      ...(sum.length?sum.map(r=>[r[0],{v:r[1],s:'b'},{v:r[2],s:'bad'},r[3],r[4]]):[[{v:'沒有要處理的事',s:'ok'}]]),[],
+      [{v:'各工作表',s:'title'}],H(['工作表','筆數']),
+      ...sheets.map(s=>[{v:s.name,s:'b'},s.rows.length])]});
+  const stamp=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  return new File([XL.book(sheets)],`workmate-${stamp}.xlsx`,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+function saveFile(file){
+  const url=URL.createObjectURL(file), a=document.createElement('a');
+  a.href=url; a.download=file.name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+/* 存到雲端硬碟:叫出手機的「分享」選單,裡面選「雲端硬碟」就直接存進去。
+   不用登入、不用金鑰,app 也碰不到你的雲端硬碟——是手機自己的雲端硬碟 app 在存。
+   瀏覽器不支援分享檔案的(電腦上多半是這樣),就改成下載。 */
+async function shareExcel(){
+  const f=await buildWorkbook();
+  if(navigator.canShare&&navigator.canShare({files:[f]})){
+    try{await navigator.share({files:[f],title:f.name}); return 'shared'}
+    catch(e){if(e&&e.name==='AbortError') return 'cancel'}
+  }
+  saveFile(f); return 'saved';
+}
+
 async function openData(){
   const items=await Store.all();
   const live=items.filter(i=>!i.deleted).length;
@@ -2027,6 +2203,15 @@ async function openData(){
 $('morebtn').onclick=openData;
 $('iclose').onclick=()=>iveil.classList.remove('on');
 iveil.onclick=e=>{if(e.target===iveil) iveil.classList.remove('on')};
+$('ixls').onclick=async()=>{
+  try{const r=await shareExcel(); if(r==='cancel') return;
+    iveil.classList.remove('on'); toast(r==='shared'?'已送出 Excel':'已下載 Excel')}
+  catch(e){$('imsg').textContent='Excel 產生失敗:'+e.message}
+};
+$('ixdl').onclick=async()=>{
+  try{saveFile(await buildWorkbook()); iveil.classList.remove('on'); toast('已下載 Excel')}
+  catch(e){$('imsg').textContent='Excel 產生失敗:'+e.message}
+};
 $('iexp').onclick=async()=>{
   try{const n=await exportAll(); iveil.classList.remove('on'); toast(`已匯出 ${n} 筆`)}
   catch(e){$('imsg').textContent='匯出失敗:'+e.message}
@@ -2178,6 +2363,31 @@ $('olist').onclick=async e=>{
   if(ds){const c=ds.dataset.c, m=ds.dataset.dsm, x=ds.dataset.ds, p=Opts.pmOf(c,m), at=p?p.subs.indexOf(x):-1;
     await Opts.delSub(c,m,x); return undo(`已刪除「${x}」`,()=>{const q=Opts.pmOf(c,m); if(q) q.subs.splice(at,0,x)})}
 };
+
+/* ---- 返回手勢 = 取消 ----
+   OPPO / Android 從螢幕邊緣往中間滑是「返回」。視窗開著的時候,這個手勢以前會直接離開 app,
+   新增到一半想放棄卻找不到地方按。現在每開一個視窗就在瀏覽紀錄裡墊一格,
+   返回手勢吃掉那一格時,把最上面的視窗關掉——跟按「取消」一樣,打到一半的內容直接丟掉。
+   用按鈕關視窗時,反過來把墊的那格退掉,不然之後要多滑一次才離得開。 */
+(()=>{
+  const veils=[...document.querySelectorAll('.veil')];
+  // 每個視窗自己的「取消」鍵:走它原本的關法,該清的狀態才會清乾淨
+  const CANCEL={veil:'cancel',pveil:'pcancel',cveil:'cclose',oveil:'oclose',iveil:'iclose'};
+  let pushed=0, skip=0;
+  const openOnes=()=>veils.filter(v=>v.classList.contains('on'));
+  new MutationObserver(()=>{
+    const n=openOnes().length;
+    while(pushed<n){history.pushState({wm:1},''); pushed++}
+    if(n<pushed){const k=pushed-n; pushed=n; skip+=k; history.go(-k)}
+  }).observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
+  addEventListener('popstate',()=>{
+    if(skip>0){skip--; return}          // 自己退的那格,不是使用者滑的
+    const open=openOnes(); if(!open.length) return;
+    pushed--;                            // 手勢已經吃掉一格
+    const top=open[open.length-1], b=$(CANCEL[top.id]);
+    if(b) b.click(); else top.classList.remove('on');
+  });
+})();
 
 /* ---- Service Worker(file:// 開啟時註冊不了,靜靜跳過) ---- */
 if('serviceWorker'in navigator&&location.protocol.startsWith('http')){
