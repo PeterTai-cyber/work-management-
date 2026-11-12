@@ -324,7 +324,7 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
 .chip.on b.rb{background:#fff;color:var(--ink)}
 .backbtn{flex:0 0 auto;margin-right:8px;height:32px;padding:0 11px 0 8px;border:1px solid var(--line);border-radius:8px;
   background:var(--card);font-family:inherit;font-size:14px;font-weight:700;color:var(--ink);cursor:pointer;align-self:center}
-#list.enter>*{animation:enter .3s cubic-bezier(.2,.8,.2,1)}
+#list.enter>*{animation:enter .32s cubic-bezier(.2,.8,.2,1) .3s both}
 @keyframes enter{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){#list.enter>*{animation:none}}
 
@@ -1250,7 +1250,7 @@ function renderRecHome(L,C){
   let need=0;
   const html=tiles.map((t,i)=>{
     const f=tileInfo(t.key,scoped); need+=f.badge;
-    return `<div class="rtile ${t.size}" data-tile="${esc(t.key)}" data-fk="${esc(t.key)}" role="button">
+    return `<div class="rtile ${t.size}" data-tile="${esc(t.key)}" data-fk="${esc(t.key)}" data-gc="${t.c}" role="button">
       <div class="rname"><i style="background:${t.c}"></i>${esc(catLabel(t.key))}${f.badge?`<span class="rbadge">${f.badge}</span>`:''}</div>
       <div class="rbig${f.hot?' hot':''}">${f.big}</div>${f.lines.map(l=>`<div class="rline">${l}</div>`).join('')}
       <div class="rmore">${f.more}</div>
@@ -1323,26 +1323,56 @@ function renderTimeline(L,C,cat,major){
   });
   L.innerHTML=h+'</div>';
 }
-/* 區塊縮成上方一排的動畫(FLIP):先記下每塊現在的位置,換畫面,再從舊位置滑到新位置。
-   同一個東西在兩個畫面上帶同一個 data-fk,就對得起來 */
+/* 區塊 ↔ 上方那排的動畫。
+   不用 scale 硬拉(字會被壓扁拉長,很難看),改成畫「替身」:跟區塊同色的空白方塊,
+   兩段式移動——先縮成小方格、聚到左上角,再橫向展開成那一排(回去時反過來,從左上角展開成區塊)。
+   替身跑完才把真的內容淡入,所以過程中不會看到變形的字。
+   同一個東西在兩個畫面上帶同一個 data-fk,就對得起來;data-gc 是它的顏色。 */
 const REDUCE=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-function snapFk(){const m={};document.querySelectorAll('[data-fk]').forEach(el=>{const r=el.getBoundingClientRect(); if(r.width) m[el.dataset.fk]=r}); return m}
-function playFk(m){
+function snapFk(){const m={};document.querySelectorAll('[data-fk]').forEach(el=>{const r=el.getBoundingClientRect();
+  if(r.width) m[el.dataset.fk]={r,c:el.dataset.gc||'',round:el.classList.contains('chip')}}); return m}
+function morphFk(m,gather=true){
   if(REDUCE) return;
+  const pairs=[];
   document.querySelectorAll('[data-fk]').forEach(el=>{
     const a=m[el.dataset.fk]; if(!a) return;
     const b=el.getBoundingClientRect(); if(!b.width||!b.height) return;
-    if(Math.abs(a.left-b.left)<1&&Math.abs(a.top-b.top)<1&&Math.abs(a.width-b.width)<1) return;
-    el.style.transformOrigin='0 0';
-    el.animate([{transform:`translate(${a.left-b.left}px,${a.top-b.top}px) scale(${a.width/b.width},${a.height/b.height})`},{transform:'none'}],
-      {duration:320,easing:'cubic-bezier(.2,.8,.2,1)'})});
+    if(Math.abs(a.r.left-b.left)<2&&Math.abs(a.r.top-b.top)<2&&Math.abs(a.r.width-b.width)<2&&Math.abs(a.r.height-b.height)<2) return;
+    pairs.push({el,a,b});
+  });
+  if(!pairs.length) return;
+  // 聚集點:兩個畫面裡最靠左上的那一格(通常就是上方那排的第一顆)
+  const all=pairs.flatMap(p=>[p.a.r,p.b]);
+  const ax=Math.min(...all.map(r=>r.left)), ay=Math.min(...all.map(r=>r.top));
+  const SQ=30, layer=document.createElement('div');
+  layer.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:20';
+  document.body.appendChild(layer);
+  const box=(r,rad)=>({left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px',borderRadius:rad+'px'});
+  const runs=pairs.map(({el,a,b},i)=>{
+    el.style.opacity='0';
+    const c=a.c||el.dataset.gc||'#7A8B86', g=document.createElement('div');
+    g.style.cssText=`position:fixed;box-sizing:border-box;border:2px solid ${c};background:${c}26`;
+    layer.appendChild(g);
+    const ra=a.round?999:14, rb=el.classList.contains('chip')?999:14;
+    // 疊在左上角時錯開一點點,看得出是好幾塊收進來
+    const mid={left:(ax+i*3)+'px',top:(ay+i*3)+'px',width:SQ+'px',height:SQ+'px',borderRadius:'9px'};
+    const frames=gather
+      ?[{...box(a.r,ra),offset:0},{...mid,offset:.42},{...mid,offset:.52},{...box(b,rb),offset:1}]
+      :[{...box(a.r,ra)},{...box(b,rb)}];
+    return g.animate(frames,{duration:gather?620:300,delay:i*28,easing:'cubic-bezier(.3,.7,.2,1)',fill:'both'}).finished
+      .then(()=>{el.style.opacity=''; el.animate([{opacity:0},{opacity:1}],{duration:160})});
+  });
+  Promise.all(runs).finally(()=>layer.remove());
 }
 async function go(fn){
   const m=snapFk(); fn(); open=null;
   const L=$('list'); L.scrollTop=0;
-  await render(); playFk(m);
-  L.classList.remove('enter'); void L.offsetWidth; L.classList.add('enter');
+  await render();
   const on=$('filters').querySelector('.chip.on'); if(on) on.scrollIntoView({inline:'center',block:'nearest'});
+  morphFk(m);
+  // 下面的內容等方格展開到一半再淡入,不要跟替身搶畫面
+  L.classList.remove('enter'); void L.offsetWidth; L.classList.add('enter');
+  clearTimeout(go.t); go.t=setTimeout(()=>L.classList.remove('enter'),700);   // 之後的重畫不要再淡入一次
 }
 
 /* 每個「＋」共用的小視窗。check 回傳錯誤訊息就留在視窗裡讓人改 */
@@ -1458,7 +1488,7 @@ async function render(){
       F.innerHTML=majorStats(sub,recs).map(m=>`<div class="chip ${m.name===pmMajor?'on':''}" data-major="${esc(m.name)}" data-fk="m:${esc(m.name)}">${
         esc(shortM(m.name))}${m.over.length?`<b class="rb">!</b>`:''}</div>`).join('');
     }else F.innerHTML=Opts.tiles().map(t=>{const n=tileInfo(t.key,scoped).badge;
-      return `<div class="chip ${t.key===sub?'on':''}" data-f="${esc(t.key)}" data-fk="${esc(t.key)}"><i class="cd" style="background:${t.c}"></i>${
+      return `<div class="chip ${t.key===sub?'on':''}" data-f="${esc(t.key)}" data-fk="${esc(t.key)}" data-gc="${t.c}"><i class="cd" style="background:${t.c}"></i>${
         esc(catLabel(t.key))}${n?`<b class="rb">${n}</b>`:''}</div>`}).join('');
   }
   else{F.style.display='flex';
@@ -1611,7 +1641,7 @@ async function tileOp(btn){
   else{const j=i+Number(btn.dataset.mv); if(j<0||j>=L.length) return;
     const a=Opts.layout.indexOf(L[i]), b=Opts.layout.indexOf(L[j]);
     [Opts.layout[a],Opts.layout[b]]=[Opts.layout[b],Opts.layout[a]]}
-  await Opts.save(); await render(); playFk(m);
+  await Opts.save(); await render(); morphFk(m,false);
 }
 // 長按區塊 450ms 進入調整模式,跟拖曳排序同一套手感;手指移動超過 10px 就當成在捲動
 const TP={t:null,y:0,skip:false};
