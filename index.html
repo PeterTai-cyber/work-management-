@@ -1745,7 +1745,8 @@ $('olist').onclick=async e=>{
 if('serviceWorker'in navigator&&location.protocol.startsWith('http')){
   addEventListener('load',()=>{
     const had=!!navigator.serviceWorker.controller;
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
+    // sw.js 本身也不要走 HTTP 快取,改版時手機才會馬上發現有新版
+    navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{});
     navigator.serviceWorker.addEventListener('controllerchange',()=>{
       if(had) toast('已更新,下次開啟生效');   // 不自動重載,免得打字打一半被吃掉
     });
