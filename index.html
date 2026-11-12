@@ -968,8 +968,17 @@ const Sync={online:true,busy:false,cfg:null,last:null,err:'',fails:0,retryAt:0,m
     this.cfg=cfg; await Store.setMeta('syncCfg',cfg);
     this.err=''; this.fails=0; this.retryAt=0},
   async post(body){
-    const res=await fetch(this.cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({password:this.cfg.pw,...body}),redirect:'follow'});
+    let res;
+    try{
+      res=await fetch(this.cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({password:this.cfg.pw,...body}),redirect:'follow'});
+    }catch(_){
+      /* 瀏覽器只會說「Failed to fetch」,看不出原因。實際上幾乎都是 Google 回了一張登入頁或錯誤頁
+         (沒有 CORS 標頭)被瀏覽器擋掉:部署時「誰可以存取」不是「所有人」、執行身分不是「我」、
+         或程式有語法錯誤。把最常見的原因直接講出來 */
+      throw new Error(navigator.onLine===false?'手機沒有網路'
+        :'Google 沒有回應資料。請檢查:①部署時「誰可以存取」選「所有人」、「執行身分」選「我」 ②網址是 /exec 結尾 ③改密碼時引號有沒有刪到。改完要重新部署');
+    }
     let j; try{j=await res.json()}catch(_){throw new Error('後端沒有回應正確的資料,檢查網址是不是「網頁應用程式」那個')}
     if(!j.ok) throw new Error(j.error||'後端回報錯誤');
     return j},
