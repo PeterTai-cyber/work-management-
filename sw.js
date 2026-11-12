@@ -1,7 +1,7 @@
 /* 工作管理助手 — Service Worker
    只負責讓 app 外殼離線可開啟。資料一律在 IndexedDB,這裡不碰。
    改版時把 CACHE 的版本號往上加,舊快取會在 activate 時清掉。 */
-const CACHE = 'workmate-shell-v5';
+const CACHE = 'workmate-shell-v6';
 const SHELL = [
   './',
   './index.html',
@@ -14,8 +14,12 @@ const SHELL = [
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE)
-      // 單一檔案抓不到不該讓整包安裝失敗,外殼少一個圖示還是能開
-      .then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => {}))))
+      /* cache:'reload' 一定要加:直接 c.add(u) 會先問瀏覽器的 HTTP 快取,
+         GitHub Pages 讓檔案在那裡留 10 分鐘,新版 SW 就會把舊的 index.html
+         收進新的快取裡——版本號升了,畫面卻還是舊的。這個坑踩過一次。
+         單一檔案抓不到不該讓整包安裝失敗,外殼少一個圖示還是能開。 */
+      .then(c => Promise.all(SHELL.map(u =>
+        c.add(new Request(u, { cache: 'reload' })).catch(() => {}))))
       .then(() => self.skipWaiting())
   );
 });
@@ -39,8 +43,10 @@ self.addEventListener('fetch', e => {
     const hit = await c.match(req, { ignoreSearch: true });
 
     if (hit) {
-      // 先給快取(離線也秒開),背景默默更新下一次要用的版本
-      fetch(req).then(res => { if (res && res.ok) c.put(req, res.clone()) }).catch(() => {});
+      /* 先給快取(離線也秒開,不等網路),背景默默更新下一次要用的版本。
+         背景這一抓用 no-cache:跟伺服器確認過才算數,不然一樣會拿到 HTTP 快取裡的舊檔 */
+      fetch(req, { cache: 'no-cache' })
+        .then(res => { if (res && res.ok) c.put(req, res.clone()) }).catch(() => {});
       return hit;
     }
     try {
