@@ -967,21 +967,54 @@ const Sync={online:true,busy:false,cfg:null,last:null,err:'',fails:0,retryAt:0,m
   async save(cfg){
     this.cfg=cfg; await Store.setMeta('syncCfg',cfg);
     this.err=''; this.fails=0; this.retryAt=0},
+  /* 有些手機讀不到 Apps Script 的 POST 回應:資料其實已經送到、也寫進去了(執行紀錄是「已完成」),
+     但回應在轉址回來時被瀏覽器擋掉,只剩一句「Failed to fetch」。所以分兩步:
+       1. 照常送。讀得到回應就好了
+       2. 讀不到:改用 no-cors 再送一次(看不到回應,但送得出去),
+          然後用 JSONP(script 標籤,不受 CORS 限制)拿 nonce 去問後端「這次收到了沒、成功了沒」
+     沒問到明確的「成功」就當失敗,dirty 留著下一輪重送——不能把沒確認的當成送到了。 */
   async post(body){
-    let res;
-    try{
-      res=await fetch(this.cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body:JSON.stringify({password:this.cfg.pw,...body}),redirect:'follow'});
-    }catch(_){
-      /* 瀏覽器只會說「Failed to fetch」,看不出原因。實際上幾乎都是 Google 回了一張登入頁或錯誤頁
-         (沒有 CORS 標頭)被瀏覽器擋掉:部署時「誰可以存取」不是「所有人」、執行身分不是「我」、
-         或程式有語法錯誤。把最常見的原因直接講出來 */
-      throw new Error(navigator.onLine===false?'手機沒有網路'
-        :'Google 沒有回應資料。請檢查:①部署時「誰可以存取」選「所有人」、「執行身分」選「我」 ②網址是 /exec 結尾 ③改密碼時引號有沒有刪到。改完要重新部署');
+    const nonce=Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+    const payload=JSON.stringify({password:this.cfg.pw,nonce,...body});
+    const H={'Content-Type':'text/plain;charset=utf-8'};
+    let res=null;
+    try{res=await fetch(this.cfg.url,{method:'POST',headers:H,body:payload,redirect:'follow'})}catch(_){}
+    if(res){
+      let j; try{j=await res.json()}catch(_){throw new Error('後端沒有回應正確的資料,檢查網址是不是「網頁應用程式」那個')}
+      if(!j.ok) throw new Error(j.error||'後端回報錯誤');
+      return j;
     }
-    let j; try{j=await res.json()}catch(_){throw new Error('後端沒有回應正確的資料,檢查網址是不是「網頁應用程式」那個')}
-    if(!j.ok) throw new Error(j.error||'後端回報錯誤');
-    return j},
+    if(navigator.onLine===false) throw new Error('手機沒有網路');
+    try{await fetch(this.cfg.url,{method:'POST',mode:'no-cors',headers:H,body:payload})}
+    catch(_){throw new Error('連不到 Google。確認手機網路,或網址有沒有貼錯')}
+    // 寫進試算表要一點時間,隔一下問一次,最多問 8 次(約 20 秒)
+    for(let k=0;k<8;k++){
+      await new Promise(r=>setTimeout(r,k?2500:1200));
+      const g=await this.jsonp({nonce});
+      // 舊版後端只會回 JSON,瀏覽器不肯把它當 script 跑 → 一樣是載入失敗。兩種都指向「更新後端」
+      if(g===null||g==='old') throw new Error('收不到後端的確認。請把最新版的程式重新貼到 Apps Script、改好密碼,再「部署 → 管理部署作業 → 編輯 → 版本選新版本 → 部署」');
+      if(g.last){
+        if(!g.last.ok) throw new Error(g.last.error||'後端回報錯誤');
+        return g.last;
+      }
+    }
+    throw new Error('送出去了,但等不到後端確認。稍後會自動重試');
+  },
+  // 用 script 標籤問後端。回傳物件;載入失敗回 null;載入了但沒呼叫回呼(舊版後端只回 JSON)回 'old'
+  jsonp(params){
+    return new Promise(done=>{
+      const cb='__wm'+Math.random().toString(36).slice(2,10), sc=document.createElement('script');
+      let fin=false;
+      const end=v=>{if(fin) return; fin=true; delete window[cb]; sc.remove(); clearTimeout(t); done(v)};
+      window[cb]=v=>end(v);
+      sc.onerror=()=>end(null);
+      sc.onload=()=>setTimeout(()=>end('old'),50);
+      const t=setTimeout(()=>end(null),15000);
+      const q=new URLSearchParams({...params,cb,_:Date.now()});
+      sc.src=this.cfg.url+(this.cfg.url.includes('?')?'&':'?')+q;
+      document.head.appendChild(sc);
+    });
+  },
   // 設定時按「測試」:只問一聲,不送資料
   async ping(cfg){const keep=this.cfg; this.cfg=cfg; try{return await this.post({ping:true})}finally{this.cfg=keep}},
   async push(force){

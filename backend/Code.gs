@@ -30,23 +30,44 @@ const STYLE = {   // 跟 app 匯出 Excel 的底色一致
 };
 
 function doPost(e) {
+  let body = {};
+  const done = r => {
+    /* 把這次的結果記下來,手機用 doGet 的 nonce 來問。
+       有些手機讀不到 POST 的回應(被瀏覽器擋掉),但資料其實已經寫進來了;
+       手機改成「先送、再問有沒有收到」,問的那條路不受影響。 */
+    if (body.nonce) PropertiesService.getScriptProperties().setProperty('LAST', JSON.stringify(Object.assign({ nonce: body.nonce, at: Date.now() }, r)));
+    return out(r);
+  };
   try {
-    const body = JSON.parse(e.postData.contents);
-    if (PASSWORD === '請改成你自己的密碼') return out({ ok: false, error: '後端還沒改密碼:打開 Apps Script,把 PASSWORD 改掉再重新部署' });
-    if (body.password !== PASSWORD) return out({ ok: false, error: '密碼不對' });
-    if (body.ping) return out({ ok: true, rows: rawCount() });
+    body = JSON.parse(e.postData.contents);
+    if (PASSWORD === '請改成你自己的密碼') return done({ ok: false, error: '後端還沒改密碼:打開 Apps Script,把 PASSWORD 改掉再重新部署' });
+    if (body.password !== PASSWORD) return done({ ok: false, error: '密碼不對' });
+    if (body.ping) return done({ ok: true, rows: rawCount() });
     const lock = LockService.getScriptLock();
     lock.waitLock(30000);   // 兩次同步撞在一起時排隊,不要互相蓋
     try {
       const n = upsertRaw(body.items || []);
       if (Array.isArray(body.sheets)) writeSheets(body.sheets);
-      return out({ ok: true, rows: n });
+      return done({ ok: true, rows: n });
     } finally { lock.releaseLock(); }
   } catch (err) {
-    return out({ ok: false, error: String(err && err.message || err) });
+    return done({ ok: false, error: String(err && err.message || err) });
   }
 }
-function doGet() { return out({ ok: true, hello: '工作管理助手後端在線上' }); }
+/* 瀏覽器直接打開網址 → 回一行 JSON,確認後端在線上。
+   手機帶 ?nonce=…&cb=… 來問「剛剛那次收到了沒」→ 用 JSONP 回(script 標籤不受 CORS 限制)。
+   這裡不回任何資料內容,只有那次同步的結果,所以不用密碼。 */
+function doGet(e) {
+  const p = (e && e.parameter) || {};
+  const res = { ok: true, hello: '工作管理助手後端在線上', v: 2 };
+  if (p.nonce) {
+    const last = JSON.parse(PropertiesService.getScriptProperties().getProperty('LAST') || 'null');
+    res.last = last && last.nonce === p.nonce ? last : null;
+  }
+  if (p.cb && /^[A-Za-z_$][\w$]{0,60}$/.test(p.cb))
+    return ContentService.createTextOutput(p.cb + '(' + JSON.stringify(res) + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
+  return out(res);
+}
 function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 
 function rawSheet() {
