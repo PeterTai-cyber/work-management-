@@ -411,6 +411,11 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
   color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer}
 .citem.col{display:block}
 .citem.col .chead{display:flex;align-items:center;gap:8px}
+.mtile{position:relative}
+.mpen{display:none;position:absolute;top:8px;right:8px;width:36px;height:32px;border:1px solid var(--line);border-radius:8px;
+  background:var(--shell);font-family:inherit;font-size:16px;font-weight:700;color:var(--ink);cursor:pointer;padding:0}
+.mboard.editing .mpen{display:block}
+.mboard.editing .mtile:not(.add){border:2px dashed var(--teal);cursor:default}
 .qbtns{display:flex;flex-direction:column;gap:8px;margin-top:4px}
 .qbtns button{padding:14px;border-radius:9px;font-family:inherit;font-size:16px;font-weight:700;cursor:pointer;
   border:1px solid var(--line);background:var(--card);color:var(--ink)}
@@ -1409,11 +1414,11 @@ function renderRecHome(L,C){
       <div class="rbig${f.hot?' hot':''}">${f.big}</div>${f.lines.map(l=>`<div class="rline">${l}</div>`).join('')}
       <div class="rmore">${f.more}</div>
       <div class="sizer">${['S','M','L'].map(z=>`<button data-size="${z}" data-k="${esc(t.key)}" class="${t.size===z?'on':''}">${{S:'小',M:'中',L:'大'}[z]}</button>`).join('')}</div>
-      <div class="mvs"><button data-mv="-1" data-k="${esc(t.key)}"${i===0?' disabled':''} aria-label="往前移">↑</button><button data-mv="1" data-k="${esc(t.key)}"${i===tiles.length-1?' disabled':''} aria-label="往後移">↓</button></div>
+      <div class="mvs"><button data-pen="${esc(t.key)}" aria-label="改名或刪除">✎</button><button data-mv="-1" data-k="${esc(t.key)}"${i===0?' disabled':''} aria-label="往前移">↑</button><button data-mv="1" data-k="${esc(t.key)}"${i===tiles.length-1?' disabled':''} aria-label="往後移">↓</button></div>
     </div>`}).join('');
   C.textContent=need?`要處理 ${need}`:`${tiles.length} 類`;
   L.innerHTML=`<div class="rboard${tileEdit?' editing':''}">${html}<div class="rtile add" data-addtop="1">＋ 新增類別</div></div>`
-    +(tileEdit?'<button class="obtn" data-opts="1">類別、大項、週期設定</button>'
+    +(tileEdit?'<div class="thint">點 ✎ 改名或刪除,↑↓ 換順序,下面選大小。改完按右上角「完成」或用返回手勢。</div>'
       :(fltOn()?'<div class="thint">區塊上的數字只算目前篩選的範圍。</div>':''));
 }
 function cyPill(m){
@@ -1427,16 +1432,18 @@ function renderMajors(L,C,cat){
   const recs=applyFlt(all.filter(i=>i.family==='紀錄'&&i.cat===cat));
   const ms=majorStats(cat,recs);
   C.textContent=`${recs.length} 筆`;
-  L.innerHTML=`<div class="mboard">${ms.map(m=>{
+  L.innerHTML=`<div class="mboard${tileEdit?' editing':''}">${ms.map(m=>{
     const d=m.last?days(m.last.at):null;
     return `<div class="mtile${m.over.length?' over':''}" data-major="${esc(m.name)}" data-fk="m:${esc(m.name)}" role="button">
+      ${m.name?`<button class="mpen" data-mpen="${esc(m.name)}" aria-label="改名、週期或刪除">✎</button>`:''}
       <div class="mn">${esc(shortM(m.name))}</div>${m.last
         ?`<div class="ago">${d===0?'今天':`${d}<small>天前</small>`}</div>
           <div class="ml">上次 ${fullDate(m.last.at)}</div>
           <div class="ml">${m.machines>1?`${m.machines} 台機台`:`${m.last.sta?`<b>${m.last.sta}</b> `:''}${esc(m.last.mac||'未指定機台')}`}</div>`
         :`<div class="ago none">還沒有紀錄</div><div class="ml">${fltOn()?'這個範圍沒有':'點進去,用＋記第一筆'}</div>`}
       ${cyPill(m)}</div>`}).join('')}
-    <div class="mtile add" data-addmajor="1">＋ 大項</div></div>`;
+    <div class="mtile add" data-addmajor="1">＋ 大項</div></div>`
+    +(tileEdit?'<div class="thint">點 ✎ 改名、設定週期或刪除。改完按右上角「完成」或用返回手勢。</div>':'');
 }
 function renderTimeline(L,C,cat,major){
   const recs=applyFlt(all.filter(i=>i.family==='紀錄'&&i.cat===cat&&i.major===major)).sort((a,b)=>b.at-a.at||b.created-a.created);
@@ -1520,11 +1527,13 @@ function morphFk(m,gather=true){
   });
   Promise.all(runs).finally(()=>layer.remove());
 }
-async function go(fn){
-  const m=snapFk(); fn(); open=null;
+/* anim=false:已經在上方那排裡切換(類別換類別、大項換大項),畫面結構沒變,不用再跑動畫 */
+async function go(fn,anim=true){
+  const m=snapFk(); fn(); open=null; tileEdit=false;
   const L=$('list'); L.scrollTop=0;
   await render();
   const on=$('filters').querySelector('.chip.on'); if(on) on.scrollIntoView({inline:'center',block:'nearest'});
+  if(!anim) return;
   morphFk(m);
   // 下面的內容等方格展開到一半再淡入,不要跟替身搶畫面
   L.classList.remove('enter'); void L.offsetWidth; L.classList.add('enter');
@@ -1744,7 +1753,7 @@ async function render(){
   BB.hidden=!inRec;
   if(inRec) BB.textContent=pmMajor!==null&&isPm('紀錄',sub)?`‹ ${catLabel(sub)}`:'‹ 全部';
   const TB=$('tilebtn');
-  TB.hidden=!(fam==='紀錄'&&!sub);
+  TB.hidden=!(fam==='紀錄'&&(!sub||(isPm('紀錄',sub)&&pmMajor===null)));
   TB.className='donebtn'+(tileEdit?' on':''); TB.textContent=tileEdit?'完成':'調整';
 
   // 已完成是跨類別的一覽,那排類別在這裡沒有意義,整排收掉
@@ -1863,9 +1872,9 @@ $('filters').onclick=e=>{
   if(e.target.closest('[data-cats]')) return openCats();
   if(fam==='紀錄'){
     const mj=e.target.closest('[data-major]');
-    if(mj) return go(()=>{pmMajor=mj.dataset.major});
+    if(mj){if(mj.dataset.major===pmMajor) return; return go(()=>{pmMajor=mj.dataset.major},false)}
     const c=e.target.closest('[data-f]'); if(!c||c.dataset.f===sub) return;
-    return go(()=>{sub=c.dataset.f; pmMajor=null});
+    return go(()=>{sub=c.dataset.f; pmMajor=null},false);
   }
   const c=e.target.closest('[data-f]'); if(!c)return;
   sub=c.dataset.f; open=null;
@@ -1897,13 +1906,29 @@ async function addSubAsk(){
   if(!r) return;
   await Opts.addSub(sub,pmMajor,r.value); await render(); toast(`加了「${r.value}」`);
 }
-async function cycleAsk(){
-  const p=Opts.pmOf(sub,pmMajor);
-  const r=await ask({title:`「${shortM(pmMajor)}」多久做一次?`,type:'number',placeholder:'天數',value:p&&p.cycle?String(p.cycle):'',
+async function cycleAsk(cat=sub,major=pmMajor){
+  const p=Opts.pmOf(cat,major);
+  const r=await ask({title:`「${shortM(major)}」多久做一次?`,type:'number',placeholder:'天數',value:p&&p.cycle?String(p.cycle):'',
     ok:'儲存',hint:'留空 = 沒有固定週期。有週期的,快到期標黃、超過標紅。',
     check:v=>v&&!(parseInt(v,10)>0)?'填一個天數,或留空':null});
   if(!r) return;
-  await Opts.setCycle(sub,pmMajor,r.value); await render(); toast(r.value?`週期 ${parseInt(r.value,10)} 天`:'已取消週期');
+  await Opts.setCycle(cat,major,r.value); await render(); toast(r.value?`週期 ${parseInt(r.value,10)} 天`:'已取消週期');
+}
+/* 長按區塊 → 每塊出現 ✎,點了就在這裡改名或刪除,不用跑到最下面的設定 */
+async function tileMenu(key){
+  const fx=key.startsWith('fx:'), name=fx?key.slice(3):key;
+  const a=await choose({title:catLabel(key),msg:fx?'治工具種類':`${REC_TYPES[Opts.recType(key)]||''}類別`,
+    choices:[{label:'改名',value:'ren'},{label:'刪除',value:'del',danger:true}]});
+  if(a==='ren') return fx?renameKindFlow(name):renameRecFlow(key);
+  if(a==='del') return fx?deleteKindFlow(name):deleteRecFlow(key);
+}
+async function majorMenu(m){
+  const p=Opts.pmOf(sub,m);
+  const a=await choose({title:shortM(m),msg:p&&p.cycle?`每 ${p.cycle} 天做一次`:'沒有固定週期',
+    choices:[{label:'改名',value:'ren'},{label:'設定週期',value:'cy'},{label:'刪除',value:'del',danger:true}]});
+  if(a==='ren') return renameMajorFlow(sub,m);
+  if(a==='cy') return cycleAsk(sub,m);
+  if(a==='del') return deleteMajorFlow(sub,m);
 }
 // 調整區塊:大小、順序。存在 meta,跟著備份走
 async function tileOp(btn){
@@ -1918,7 +1943,10 @@ async function tileOp(btn){
 // 長按區塊 450ms 進入調整模式,跟拖曳排序同一套手感;手指移動超過 10px 就當成在捲動
 const TP={t:null,y:0,skip:false};
 $('list').addEventListener('touchstart',e=>{
-  if(fam!=='紀錄'||sub||tileEdit||e.touches.length!==1||!e.target.closest('[data-tile]')) return;
+  if(fam!=='紀錄'||tileEdit||e.touches.length!==1) return;
+  const onTile=!sub&&e.target.closest('[data-tile]');
+  const onMajor=sub&&isPm('紀錄',sub)&&pmMajor===null&&e.target.closest('.mboard [data-major]');
+  if(!onTile&&!onMajor) return;
   TP.y=e.touches[0].clientY; clearTimeout(TP.t);
   TP.t=setTimeout(()=>{TP.t=null; TP.skip=true; tileEdit=true;
     if(navigator.vibrate){try{navigator.vibrate(25)}catch(_){}} render()},450)},{passive:true});
@@ -1926,6 +1954,10 @@ $('list').addEventListener('touchmove',e=>{if(TP.t&&Math.abs(e.touches[0].client
 $('list').addEventListener('touchend',()=>{clearTimeout(TP.t);TP.t=null},{passive:true});
 async function recClick(e){
   if(TP.skip){TP.skip=false; return true}
+  const pen=e.target.closest('[data-pen]');
+  if(pen){tileMenu(pen.dataset.pen); return true}
+  const mp=e.target.closest('[data-mpen]');
+  if(mp){majorMenu(mp.dataset.mpen); return true}
   const z=e.target.closest('[data-size],[data-mv]');
   if(z&&z.dataset.k){await tileOp(z); return true}
   if(e.target.closest('[data-addtop]')){addTop(); return true}
@@ -1940,7 +1972,7 @@ async function recClick(e){
   const t=e.target.closest('[data-tile]');
   if(t){if(!tileEdit) go(()=>{sub=t.dataset.tile; pmMajor=null}); return true}
   const mj=e.target.closest('[data-major]');
-  if(mj){go(()=>{pmMajor=mj.dataset.major}); return true}
+  if(mj){if(!tileEdit) go(()=>{pmMajor=mj.dataset.major}); return true}
   return false;
 }
 $('list').onclick=async e=>{
@@ -2686,28 +2718,40 @@ $('olist').onclick=async e=>{
   const veils=[...document.querySelectorAll('.veil')];
   // 每個視窗自己的「取消」鍵:走它原本的關法,該清的狀態才會清乾淨
   const CANCEL={veil:'cancel',pveil:'pcancel',cveil:'cclose',oveil:'oclose',iveil:'iclose',sveil:'sclose',qveil:'qcancel'};
+  /* 返回手勢要能退的「層」,從底到頂:
+       紀錄點進某一類 → 點進某個大項 → 長按的調整模式 → 開著的視窗
+     每一層墊一格瀏覽紀錄,手勢吃掉一格就退最上面那層。全部退完才輪到離開 app */
+  const layers=()=>{
+    const L=[];
+    if(fam==='紀錄'&&sub){
+      L.push(()=>go(()=>{sub=''; pmMajor=null}));
+      if(isPm('紀錄',sub)&&pmMajor!==null) L.push(()=>go(()=>{pmMajor=null}));
+    }
+    if(fam==='紀錄'&&tileEdit) L.push(()=>{tileEdit=false; render()});
+    for(const v of veils) if(v.classList.contains('on'))
+      L.push(()=>{const b=$(CANCEL[v.id]); if(b) b.click(); else v.classList.remove('on')});
+    return L;
+  };
   let pushed=0, skip=0;
-  const openOnes=()=>veils.filter(v=>v.classList.contains('on'));
-  /* 關視窗時不要馬上退:常常是「關掉一個、馬上開下一個」(確認框 → 改名框),
+  /* 退出一層時不要馬上退瀏覽紀錄:常常是「關掉一個、馬上開下一個」(確認框 → 改名框),
      馬上退的話會多退一格,退出 app。等一下再對帳,接著開的那個先算進去 */
   let later=0;
   new MutationObserver(()=>{
-    const n=openOnes().length;
+    const n=layers().length;
     while(pushed<n){history.pushState({wm:1},''); pushed++}
     if(n<pushed){
       clearTimeout(later);
       later=setTimeout(()=>{
-        const m=openOnes().length;
+        const m=layers().length;
         if(m<pushed){const k=pushed-m; pushed=m; skip+=k; history.go(-k)}
       },80);
     }
-  }).observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
+  }).observe(document.body,{subtree:true,attributes:true,attributeFilter:['class','hidden']});
   addEventListener('popstate',()=>{
     if(skip>0){skip--; return}          // 自己退的那格,不是使用者滑的
-    const open=openOnes(); if(!open.length) return;
+    const L=layers(); if(!L.length) return;
     pushed--;                            // 手勢已經吃掉一格
-    const top=open[open.length-1], b=$(CANCEL[top.id]);
-    if(b) b.click(); else top.classList.remove('on');
+    L[L.length-1]();
   });
 })();
 
