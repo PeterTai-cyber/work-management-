@@ -411,6 +411,14 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
   color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer}
 .citem.col{display:block}
 .citem.col .chead{display:flex;align-items:center;gap:8px}
+.qbtns{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.qbtns button{padding:14px;border-radius:9px;font-family:inherit;font-size:16px;font-weight:700;cursor:pointer;
+  border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.qbtns button.danger{background:var(--rust);border-color:var(--rust);color:#fff}
+.tsubs button.sub{font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:#E4EBE8;color:#2C403B;border:0;cursor:pointer;font-family:inherit}
+.tsum .mact{border:1px solid var(--line);background:var(--shell);border-radius:7px;padding:4px 10px;font-family:inherit;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer}
+.tsum .mact.del{color:var(--rust);border-color:#E8D5CC}
+.cx.ren{color:var(--teal);border-color:var(--line)}
 .toast{position:absolute;left:50%;bottom:150px;transform:translateX(-50%);background:var(--ink);
   color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;
   transition:opacity .2s;white-space:nowrap;z-index:5;display:flex;align-items:center;gap:14px}
@@ -475,17 +483,6 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
       <div class="srow"><button id="cclose" style="flex:1">關閉</button></div>
     </div>
   </div>
-  <!-- 每個「＋」共用的小視窗:打一個名字(或週期天數),必要時選型態 -->
-  <div class="veil" id="pveil">
-    <div class="modal">
-      <div class="mtitle" id="ptitle"></div>
-      <div class="cbtns" id="pchoices" style="margin-bottom:10px"></div>
-      <input id="pin" class="oin" style="width:100%">
-      <div class="dhint" id="phint" style="margin-top:8px"></div>
-      <div class="err" id="perr"></div>
-      <div class="srow"><button id="pcancel">取消</button><button class="save" id="pok">新增</button></div>
-    </div>
-  </div>
   <!-- 雲端同步設定:網址和密碼只存在這支手機,不進程式碼 -->
   <div class="veil" id="sveil">
     <div class="modal">
@@ -528,6 +525,26 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
         <button id="ipick">匯入檔案</button>
       </div>
       <div class="srow"><button id="iclose" style="flex:1">關閉</button></div>
+    </div>
+  </div>
+  <!-- 每個「＋」共用的小視窗:打一個名字(或週期天數),必要時選型態 -->
+  <div class="veil" id="pveil">
+    <div class="modal">
+      <div class="mtitle" id="ptitle"></div>
+      <div class="cbtns" id="pchoices" style="margin-bottom:10px"></div>
+      <input id="pin" class="oin" style="width:100%">
+      <div class="dhint" id="phint" style="margin-top:8px"></div>
+      <div class="err" id="perr"></div>
+      <div class="srow"><button id="pcancel">取消</button><button class="save" id="pok">新增</button></div>
+    </div>
+  </div>
+  <!-- 刪除前一定要問。選項依情況變:沒東西就「刪除 / 取消」,底下還有東西就問「搬到哪」 -->
+  <div class="veil" id="qveil">
+    <div class="modal">
+      <div class="mtitle" id="qtitle"></div>
+      <div class="cask" id="qmsg"></div>
+      <div class="qbtns" id="qbtns"></div>
+      <div class="srow"><button id="qcancel" style="flex:1">取消</button></div>
     </div>
   </div>
   <div class="toast" id="toast"></div>
@@ -743,6 +760,15 @@ const Cats={
     if(this.names().includes(name)) return '已經有這個類別了';
     this.list.push({name,c:this.nextColor()});
     await this.save(); return null},
+  // 改名:顏色跟著原本那一類,不換色
+  async rename(o,n){
+    n=(n||'').trim();
+    if(!n) return '先打個名稱';
+    if([...n].length>6) return '最多 6 個字';
+    if(RESERVED.includes(n)) return `「${n}」是分頁名稱,換一個`;
+    if(n!==o&&this.names().includes(n)) return '已經有這個類別了';
+    const c=this.list.find(x=>x.name===o); if(!c) return '找不到這個類別';
+    c.name=n; await this.save(); return null},
   async remove(name){
     if(this.list.length<=1) return '至少要留一個類別';
     this.list=this.list.filter(c=>c.name!==name);
@@ -812,8 +838,8 @@ const Opts={
     if(list.includes(name)) return '已經有了';
     return null},
   // 種類和類別共用首頁,名字不能撞;「治工具」「全部」「已完成」是保留字
-  checkTop(n){
-    const e=this.check(n,[...this.kinds,...this.recs.map(r=>r.name),...this.recs.map(r=>r.label)]);
+  checkTop(n,except=[]){
+    const e=this.check(n,[...this.kinds,...this.recs.map(r=>r.name),...this.recs.map(r=>r.label)].filter(x=>!except.includes(x)));
     if(e) return e;
     if(['治工具',...RESERVED].includes(n.trim())) return `「${n.trim()}」是保留的名字,換一個`;
     return null},
@@ -832,6 +858,26 @@ const Opts={
     let p=this.pmOf(cat,major);
     if(!p){p={name:major,cycle:null,subs:[]}; this.majorsOf(cat).push(p)}
     const v=parseInt(d,10); p.cycle=v>0?v:null; await this.save()},
+  /* 改名。設定這邊只改清單,資料那邊(紀錄上的大項、細項、種類)由呼叫的人用 Data.retag 一起改 */
+  async renameRec(name,label){
+    const r=this.recOf(name); if(!r) return '找不到這個類別';
+    const e=this.checkTop(label,[r.name,r.label]); if(e) return e;
+    r.label=label.trim(); await this.save(); return null},   // 只改顯示名稱,資料裡的類別代號不動,一筆都不用改
+  async renameKind(o,n){
+    const e=this.checkTop(n,[o]); if(e) return e;
+    n=n.trim(); const i=this.kinds.indexOf(o);
+    if(i>=0) this.kinds[i]=n; else this.kinds.push(n);
+    const L=this.layout.find(x=>x.key==='fx:'+o); if(L) L.key='fx:'+n;   // 區塊的大小、顏色跟著走
+    await this.save(); return null},
+  async renameMajor(cat,o,n){
+    const ms=this.majorsOf(cat), e=this.check(n,ms.map(p=>p.name).filter(x=>x!==o)); if(e) return e;
+    const p=this.pmOf(cat,o); if(p) p.name=n.trim(); else ms.push({name:n.trim(),cycle:null,subs:[]});
+    await this.save(); return null},
+  async renameSub(cat,m,o,n){
+    let p=this.pmOf(cat,m); if(!p){p={name:m,cycle:null,subs:[]}; this.majorsOf(cat).push(p)}
+    const e=this.check(n,p.subs.filter(x=>x!==o)); if(e) return e;
+    const i=p.subs.indexOf(o); if(i>=0) p.subs[i]=n.trim(); else p.subs.push(n.trim());
+    await this.save(); return null},
   async delKind(n){this.kinds=this.kinds.filter(x=>x!==n); await this.save()},
   async delRec(n){this.recs=this.recs.filter(r=>r.name!==n); await this.save()},
   async delMajor(cat,n){const r=this.recOf(cat); if(!r||!r.majors) return; r.majors=r.majors.filter(x=>x.name!==n); await this.save()},
@@ -946,6 +992,14 @@ const Data={
              :(prev.order+next.order)/2;
     return Store.put({...it,order:ord,dirty:true});
   },
+  /* 改名、搬家:把符合條件的每一筆(連墓碑)改掉。算內容變更,動 edited 不動 updated——
+     大項改個名字,停滯天數、時間軸都不該變。連墓碑一起改,不然哪天復原又冒出舊名字 */
+  async retag(test,patch){
+    const t=Date.now(); let n=0;
+    for(const it of await Store.all()){
+      if(!test(it)) continue;
+      await Store.put({...it,...patch(it),edited:t,dirty:true}); n++}
+    return n},
   async pending(){return (await Store.all()).filter(i=>i.dirty)}
 };
 
@@ -1401,8 +1455,10 @@ function renderTimeline(L,C,cat,major){
       :`<div class="k">${esc(shortM(major))}</div><div class="sd" style="font-size:18px;color:var(--mute)">${fltOn()?'這個範圍還沒有紀錄':'還沒有紀錄'}</div><div></div>`}
     <div class="s">${recs.length?`<span>共 <b>${recs.length}</b> 筆</span>`:''}${avg?`<span>平均每 <b>${avg}</b> 天一次</span>`:''}${
       !solo?`<span>${new Set(recs.map(r=>r.sta+'|'+r.mac)).size} 台機台</span>`:''}
-      <button class="cyb" data-cycle="1">${cy?`週期 ${cy} 天`:'設定週期'}</button></div>
-    <div class="tsubs"><span class="k2">細項</span>${subs.map(x=>`<span>${esc(x)}</span>`).join('')}<button data-addsub="1">＋ 細項</button></div>
+      <button class="cyb" data-cycle="1">${cy?`週期 ${cy} 天`:'設定週期'}</button>
+      ${major?'<button class="mact" data-mren="1">改名</button><button class="mact del" data-mdel="1">刪除大項</button>':''}</div>
+    <div class="tsubs"><span class="k2">細項</span>${subs.map(x=>`<button class="sub" data-sub="${esc(x)}">${esc(x)}</button>`).join('')}<button data-addsub="1">＋ 細項</button></div>
+    ${subs.length?'<div class="thint" style="grid-column:1/-1;margin:2px 0 0">點細項可以改名或刪除</div>':''}
   </div>`;
   if(!recs.length){L.innerHTML=h+'<div class="thint">按右下角＋記第一筆,大項會自動帶好。</div>'; return}
   if(!solo) h+='<div class="thint">混了好幾台機台。篩選一台,就看得到每次相隔幾天。</div>';
@@ -1498,6 +1554,115 @@ function ask({title,placeholder='',value='',type='text',hint='',choices=null,ok=
     I.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault(); submit()}};
     V.classList.add('on'); setTimeout(()=>I.focus(),150);
   });
+}
+
+/* 刪除前的確認視窗。choices:[{label,value,danger}];按取消、點外面、返回手勢都回 null */
+function choose({title,msg,choices}){
+  return new Promise(done=>{
+    const V=$('qveil');
+    $('qtitle').textContent=title; $('qmsg').innerHTML=msg;
+    $('qbtns').innerHTML=choices.map((c,i)=>`<button class="${c.danger?'danger':''}" data-i="${i}">${esc(c.label)}</button>`).join('');
+    const end=v=>{V.classList.remove('on'); done(v)};
+    $('qbtns').onclick=e=>{const b=e.target.closest('[data-i]'); if(b) end(choices[+b.dataset.i].value)};
+    $('qcancel').onclick=()=>end(null);
+    V.onclick=e=>{if(e.target===V) end(null)};
+    V.classList.add('on');
+  });
+}
+
+/* ===== 改名、刪除:能建立的都要能改、能刪 =====
+   刪除一律先問。底下還有東西的,問「搬到哪」——不搬就刪,那些紀錄會變成沒人認領,
+   在畫面上等於消失,但其實還躺在資料庫裡,比真的刪掉更糟。 */
+const isRec=(i,cat)=>i.family==='紀錄'&&i.cat===cat;
+async function afterOpt(msg){renderOpts(); await render(); if(msg) toast(msg); Sync.push()}
+
+async function renameMajorFlow(cat,m){
+  const r=await ask({title:'大項改名',value:m,ok:'儲存',check:v=>v===m?null:Opts.check(v,Opts.majorsOf(cat).map(p=>p.name))});
+  if(!r||r.value===m) return;
+  const err=await Opts.renameMajor(cat,m,r.value); if(err) return toast(err);
+  const n=await Data.retag(i=>isRec(i,cat)&&i.major===m,()=>({major:r.value}));
+  if(pmMajor===m) pmMajor=r.value;
+  await afterOpt(`已改名${n?`,${n} 筆紀錄一起改`:''}`);
+}
+async function deleteMajorFlow(cat,m){
+  const n=all.filter(i=>isRec(i,cat)&&i.major===m).length;
+  let to;
+  if(n){
+    const others=[...new Set([...Opts.majorsOf(cat).map(p=>p.name),...all.filter(i=>isRec(i,cat)&&i.major).map(i=>i.major)])].filter(x=>x!==m);
+    to=await choose({title:`刪除大項「${shortM(m)}」`,msg:`底下還有 <b>${n}</b> 筆紀錄。要把它們搬到哪個大項?`,
+      choices:[...others.map(o=>({label:`搬到「${shortM(o)}」`,value:o})),{label:'搬到「未分大項」',value:''}]});
+    if(to==null) return;
+    await Data.retag(i=>isRec(i,cat)&&i.major===m,()=>({major:to}));
+  }else if(!await choose({title:`刪除大項「${shortM(m)}」?`,msg:'這個大項底下沒有紀錄。週期和細項設定會一起刪掉。',choices:[{label:'刪除',value:1,danger:true}]})) return;
+  await Opts.delMajor(cat,m);
+  if(pmMajor===m) pmMajor=null;
+  await afterOpt(n?`已刪除,${n} 筆搬到「${to?shortM(to):'未分大項'}」`:'已刪除');
+}
+async function subMenu(cat,m,s){
+  const n=all.filter(i=>isRec(i,cat)&&i.major===m&&i.minors.includes(s)).length;
+  const act=await choose({title:`細項「${s}」`,msg:n?`有 ${n} 筆紀錄勾了這個細項。`:'還沒有紀錄勾這個細項。',
+    choices:[{label:'改名',value:'ren'},{label:'刪除',value:'del',danger:true}]});
+  if(act==='ren'){
+    const r=await ask({title:'細項改名',value:s,ok:'儲存',check:v=>{const p=Opts.pmOf(cat,m); return v===s?null:Opts.check(v,p?p.subs:[])}});
+    if(!r||r.value===s) return;
+    const err=await Opts.renameSub(cat,m,s,r.value); if(err) return toast(err);
+    await Data.retag(i=>isRec(i,cat)&&i.major===m&&i.minors.includes(s),i=>({minors:[...new Set(i.minors.map(x=>x===s?r.value:x))]}));
+    return afterOpt('已改名');
+  }
+  if(act==='del'){
+    if(n&&!await choose({title:`確定刪除「${s}」?`,msg:`${n} 筆紀錄上的這個細項標籤也會拿掉,紀錄本身不會刪。`,choices:[{label:'刪除',value:1,danger:true}]})) return;
+    await Opts.delSub(cat,m,s);
+    await Data.retag(i=>isRec(i,cat)&&i.major===m&&i.minors.includes(s),i=>({minors:i.minors.filter(x=>x!==s)}));
+    return afterOpt('已刪除');
+  }
+}
+async function renameRecFlow(name){
+  const r0=Opts.recOf(name); if(!r0) return;
+  const r=await ask({title:'類別改名',value:r0.label,ok:'儲存',check:v=>v===r0.label?null:Opts.checkTop(v,[r0.name,r0.label])});
+  if(!r||r.value===r0.label) return;
+  const err=await Opts.renameRec(name,r.value); if(err) return toast(err);
+  await afterOpt('已改名');
+}
+async function deleteRecFlow(name){
+  const r0=Opts.recOf(name); if(!r0) return;
+  if(Opts.recs.length<=1) return toast('至少要留一個類別');
+  const n=all.filter(i=>isRec(i,name)).length;
+  let to=null;
+  if(n){
+    // 只能搬到同型態的類別:保養的紀錄搬到流水帳,大項就沒地方放了
+    const same=Opts.recs.filter(x=>x.name!==name&&x.type===r0.type);
+    if(!same.length) return choose({title:`「${r0.label}」還不能刪`,msg:`底下還有 <b>${n}</b> 筆紀錄,而且沒有其他「${REC_TYPES[r0.type]}」型態的類別可以搬過去。先新增一個同型態的類別,或把紀錄刪掉。`,choices:[]});
+    to=await choose({title:`刪除類別「${r0.label}」`,msg:`底下還有 <b>${n}</b> 筆紀錄(含刪掉的)。要把它們搬到哪一類?`,
+      choices:same.map(x=>({label:`搬到「${x.label}」`,value:x.name}))});
+    if(!to) return;
+    await Data.retag(i=>isRec(i,name),()=>({cat:to}));
+  }else if(!await choose({title:`刪除類別「${r0.label}」?`,msg:'這個類別底下沒有紀錄。',choices:[{label:'刪除',value:1,danger:true}]})) return;
+  await Opts.delRec(name);
+  if(sub===name){sub=''; pmMajor=null}
+  await afterOpt(n?`已刪除,${n} 筆搬到「${Opts.recOf(to).label}」`:'已刪除');
+}
+async function renameKindFlow(k){
+  const r=await ask({title:'治工具種類改名',value:k,ok:'儲存',check:v=>v===k?null:Opts.checkTop(v,[k])});
+  if(!r||r.value===k) return;
+  const err=await Opts.renameKind(k,r.value); if(err) return toast(err);
+  const n=await Data.retag(i=>isFx(i.family,i.cat)&&i.kind===k,()=>({kind:r.value}));
+  if(sub==='fx:'+k) sub='fx:'+r.value;
+  await afterOpt(`已改名${n?`,${n} 筆履歷一起改`:''}`);
+}
+async function deleteKindFlow(k){
+  const fs=fixtures(all).filter(f=>f.kind===k);
+  let to=null;
+  if(fs.length){
+    const others=fxKinds().filter(x=>x!==k);
+    if(!others.length) return choose({title:`「${k}」還不能刪`,msg:`底下還有 <b>${fs.length}</b> 支,而且沒有其他種類可以搬過去。`,choices:[]});
+    to=await choose({title:`刪除種類「${k}」`,msg:`底下還有 <b>${fs.length}</b> 支(含已報廢)。要把它們改成哪個種類?`,
+      choices:others.map(o=>({label:`改成「${o}」`,value:o}))});
+    if(!to) return;
+    await Data.retag(i=>isFx(i.family,i.cat)&&i.kind===k,()=>({kind:to}));
+  }else if(!await choose({title:`刪除種類「${k}」?`,msg:'這個種類底下沒有治工具。',choices:[{label:'刪除',value:1,danger:true}]})) return;
+  await Opts.delKind(k);
+  if(sub==='fx:'+k){sub=''; pmMajor=null}
+  await afterOpt(fs.length?`已刪除,${fs.length} 支改成「${to}」`:'已刪除');
 }
 
 /* 篩選列用原生 select。Android 會跳出系統選單,選項又大又好按,
@@ -1768,6 +1933,10 @@ async function recClick(e){
   if(e.target.closest('[data-addmajor]')){addMajorAsk(); return true}
   if(e.target.closest('[data-addsub]')){addSubAsk(); return true}
   if(e.target.closest('[data-cycle]')){cycleAsk(); return true}
+  if(e.target.closest('[data-mren]')){renameMajorFlow(sub,pmMajor); return true}
+  if(e.target.closest('[data-mdel]')){deleteMajorFlow(sub,pmMajor); return true}
+  const sb=e.target.closest('[data-sub]');
+  if(sb){subMenu(sub,pmMajor,sb.dataset.sub); return true}
   const t=e.target.closest('[data-tile]');
   if(t){if(!tileEdit) go(()=>{sub=t.dataset.tile; pmMajor=null}); return true}
   const mj=e.target.closest('[data-major]');
@@ -1796,6 +1965,10 @@ $('list').onclick=async e=>{
     const {i:id,a:act}=a.dataset;
     if(act==='edit'){const it=all.find(x=>x.id===id); if(it) openForm(it); return}
     if(act==='del'){
+      // 刪除先問一次;確定之後還是給「復原」,兩道保險
+      const it=all.find(x=>x.id===id);
+      const what=it?(isFx(it.family,it.cat)?`${it.code} 最近一筆狀態「${it.event}」`:(it.text||(it.major?shortM(it.major):'')||'這一筆')):'這一筆';
+      if(!await choose({title:'確定刪除?',msg:esc(what.length>60?what.slice(0,60)+'…':what),choices:[{label:'刪除',value:1,danger:true}]})) return;
       await Data.remove(id); open=null; await render();
       // 刪除只是標記,復原成本很低。戴手套誤觸的機率不低,不能沒有退路。
       toast('已刪除',{label:'復原',fn:async()=>{
@@ -2387,6 +2560,7 @@ function renderCats(){
     if(catDel!==c.name)
       return `<div class="citem"><span class="cdot ${c.c}"></span><b>${esc(c.name)}</b>
         <span class="cn">${k} 筆</span>
+        <button class="cx ren" data-ren="${esc(c.name)}">改名</button>
         <button class="cx" data-del="${esc(c.name)}">刪除</button></div>`;
     const others=Cats.names().filter(x=>x!==c.name);
     /* 有東西在裡面就不能直接刪。
@@ -2419,6 +2593,15 @@ $('cadd').onclick=async()=>{
   await render(); renderCats(); toast(`加了「${name}」`);
 };
 $('clist').onclick=async e=>{
+  const rn=e.target.closest('[data-ren]');
+  if(rn){
+    const o=rn.dataset.ren;
+    const r=await ask({title:'待辦類別改名',value:o,ok:'儲存',check:v=>v===o?null:(Cats.names().includes(v)?'已經有這個類別了':null)});
+    if(!r||r.value===o) return;
+    const err=await Cats.rename(o,r.value); if(err) return cfail(err);
+    const n=await Data.moveCat(o,r.value);   // 顏色留在原本那一類,裡面的東西跟著改名
+    if(sub===o) sub=r.value; if(lastCat===o) lastCat=r.value; if(flt.cat===o) flt.cat=r.value;
+    await render(); renderCats(); toast(`已改名${n?`,${n} 筆一起改`:''}`); Sync.push(); return}
   const d=e.target.closest('[data-del]');
   if(d){catDel=d.dataset.del; $('cerr').classList.remove('on'); return renderCats()}
   if(e.target.closest('[data-cx]')){catDel=null; return renderCats()}
@@ -2439,7 +2622,7 @@ $('clist').onclick=async e=>{
 
 /* ---- 紀錄設定:類別、治工具種類、大項(週期、細項) ----
    新增在各層的「＋」就做得到;這裡是一次看全部、改週期、刪東西的地方。
-   類別和種類是首頁區塊,底下還有東西就不准刪。大項、細項只是選項,刪了紀錄不會消失,而且給復原。 */
+   每一樣都能改名、能刪。刪除一定先問;底下還有東西的,先問要搬去哪。 */
 const oveil=$('oveil');
 const OPCAT=c=>`data-c="${esc(c)}"`;
 function renderOpts(){
@@ -2447,20 +2630,21 @@ function renderOpts(){
   const kn=k=>fxs.filter(f=>f.kind===k).length;
   const cn=c=>recs.filter(i=>i.cat===c).length;
   const mn=(c,m)=>recs.filter(i=>i.cat===c&&i.major===m).length;
-  const row=(name,n,attr,unit)=>`<div class="citem"><b>${esc(name)}</b><span class="cn">${n} ${unit}</span>
-      <button class="cx" ${attr}>刪除</button></div>`;
+  const row=(name,n,ren,del,unit)=>`<div class="citem"><b>${esc(name)}</b><span class="cn">${n} ${unit}</span>
+      <button class="cx ren" ${ren}>改名</button><button class="cx" ${del}>刪除</button></div>`;
   let h=`<div class="osec">紀錄類別</div>`
-    +Opts.recs.map(r=>row(`${r.label} · ${REC_TYPES[r.type]}`,cn(r.name),`data-dr="${esc(r.name)}"`,'筆')).join('')
+    +Opts.recs.map(r=>row(`${r.label} · ${REC_TYPES[r.type]}`,cn(r.name),`data-rr="${esc(r.name)}"`,`data-dr="${esc(r.name)}"`,'筆')).join('')
     +`<div class="osec">治工具種類</div>`
-    +Opts.kinds.map(k=>row(k,kn(k),`data-dk="${esc(k)}"`,'支')).join('')
+    +Opts.kinds.map(k=>row(k,kn(k),`data-rk="${esc(k)}"`,`data-dk="${esc(k)}"`,'支')).join('')
     +`<div class="dhint">新增類別、種類:回到紀錄首頁按「＋ 新增類別」。</div>`;
   for(const r of Opts.recs.filter(r=>r.type==='pm')){
     h+=`<div class="osec">${esc(r.label)}的大項 · 週期</div>`
       +Opts.majorsOf(r.name).map(p=>`<div class="citem col"><div class="chead"><b>${esc(p.name)}</b>
         <span class="ocy">每 <input type="number" inputmode="numeric" min="1" data-cy="${esc(p.name)}" ${OPCAT(r.name)} value="${p.cycle??''}"> 天</span>
+        <button class="cx ren" data-rm="${esc(p.name)}" ${OPCAT(r.name)}>改名</button>
         <button class="cx" data-dm="${esc(p.name)}" ${OPCAT(r.name)}>刪除</button></div>
-        <div class="dates">${mn(r.name,p.name)} 筆紀錄</div>
-        <div class="ochips">${p.subs.map(s=>`<span>${esc(s)}<button data-ds="${esc(s)}" data-dsm="${esc(p.name)}" ${OPCAT(r.name)} aria-label="刪除">×</button></span>`).join('')
+        <div class="dates">${mn(r.name,p.name)} 筆紀錄${p.subs.length?' · 點細項可以改名或刪除':''}</div>
+        <div class="ochips">${p.subs.map(s=>`<span data-ds="${esc(s)}" data-dsm="${esc(p.name)}" ${OPCAT(r.name)} style="cursor:pointer;padding-right:10px">${esc(s)}</span>`).join('')
           ||'<span style="padding:4px 10px;color:#A6B0AC;background:none">還沒有細項</span>'}</div></div>`).join('')
       +`<div class="crow" style="margin-top:4px;padding-top:0;border:0"><input class="oin" data-newmajor="${esc(r.name)}" placeholder="新大項" maxlength="10"><button class="oadd" data-oadd="${esc(r.name)}">新增</button></div>`;
   }
@@ -2481,29 +2665,16 @@ $('olist').onclick=async e=>{
     const err=await Opts.addMajor(cat,inp?inp.value:'');
     if(err) return fail(err);
     renderOpts(); await render(); return}
-  // 刪除都給復原:放回原本的位置,連週期和細項一起
-  const undo=(msg,fn)=>{renderOpts(); render(); toast(msg,{label:'復原',fn:async()=>{
-    await fn(); await Opts.save(); renderOpts(); await render()}})};
-  const dk=e.target.closest('[data-dk]');
-  if(dk){const k=dk.dataset.dk, at=Opts.kinds.indexOf(k);
-    /* 種類是首頁區塊。底下還有東西就刪不掉——刪了它也會因為「資料裡有」又長回來,
-       與其讓人以為刪不乾淨,不如直接講清楚要先做什麼 */
-    const n=fixtures(all).filter(f=>f.kind===k).length;
-    if(n) return fail(`「${k}」底下還有 ${n} 支(含已報廢),先把它們編輯成別的種類才能刪`);
-    await Opts.delKind(k); return undo(`已刪除「${k}」`,()=>Opts.kinds.splice(at,0,k))}
-  const dr=e.target.closest('[data-dr]');
-  if(dr){const at=Opts.recs.findIndex(r=>r.name===dr.dataset.dr), keep=Opts.recs[at];
-    const n=all.filter(i=>i.family==='紀錄'&&i.cat===keep.name).length;
-    if(n) return fail(`「${keep.label}」底下還有 ${n} 筆,先把它們刪掉或改到別的類別才能刪`);
-    if(Opts.recs.length<=1) return fail('至少要留一個類別');
-    if(sub===keep.name){sub=''; pmMajor=null}
-    await Opts.delRec(keep.name); return undo(`已刪除「${keep.label}」`,()=>Opts.recs.splice(at,0,keep))}
-  const dm=e.target.closest('[data-dm]');
-  if(dm){const c=dm.dataset.c, list=Opts.majorsOf(c), at=list.findIndex(p=>p.name===dm.dataset.dm), keep=list[at];
-    await Opts.delMajor(c,keep.name); return undo(`已刪除「${keep.name}」`,()=>Opts.majorsOf(c).splice(at,0,keep))}
-  const ds=e.target.closest('[data-ds]');
-  if(ds){const c=ds.dataset.c, m=ds.dataset.dsm, x=ds.dataset.ds, p=Opts.pmOf(c,m), at=p?p.subs.indexOf(x):-1;
-    await Opts.delSub(c,m,x); return undo(`已刪除「${x}」`,()=>{const q=Opts.pmOf(c,m); if(q) q.subs.splice(at,0,x)})}
+  // 改名、刪除都走跟畫面上同一套流程:刪除一定先問,底下有東西就問搬去哪
+  const g=(k)=>e.target.closest(`[data-${k}]`);
+  let t;
+  if(t=g('rr')) return renameRecFlow(t.dataset.rr);
+  if(t=g('dr')) return deleteRecFlow(t.dataset.dr);
+  if(t=g('rk')) return renameKindFlow(t.dataset.rk);
+  if(t=g('dk')) return deleteKindFlow(t.dataset.dk);
+  if(t=g('rm')) return renameMajorFlow(t.dataset.c,t.dataset.rm);
+  if(t=g('dm')) return deleteMajorFlow(t.dataset.c,t.dataset.dm);
+  if(t=g('ds')) return subMenu(t.dataset.c,t.dataset.dsm,t.dataset.ds);
 };
 
 /* ---- 返回手勢 = 取消 ----
@@ -2514,13 +2685,22 @@ $('olist').onclick=async e=>{
 (()=>{
   const veils=[...document.querySelectorAll('.veil')];
   // 每個視窗自己的「取消」鍵:走它原本的關法,該清的狀態才會清乾淨
-  const CANCEL={veil:'cancel',pveil:'pcancel',cveil:'cclose',oveil:'oclose',iveil:'iclose',sveil:'sclose'};
+  const CANCEL={veil:'cancel',pveil:'pcancel',cveil:'cclose',oveil:'oclose',iveil:'iclose',sveil:'sclose',qveil:'qcancel'};
   let pushed=0, skip=0;
   const openOnes=()=>veils.filter(v=>v.classList.contains('on'));
+  /* 關視窗時不要馬上退:常常是「關掉一個、馬上開下一個」(確認框 → 改名框),
+     馬上退的話會多退一格,退出 app。等一下再對帳,接著開的那個先算進去 */
+  let later=0;
   new MutationObserver(()=>{
     const n=openOnes().length;
     while(pushed<n){history.pushState({wm:1},''); pushed++}
-    if(n<pushed){const k=pushed-n; pushed=n; skip+=k; history.go(-k)}
+    if(n<pushed){
+      clearTimeout(later);
+      later=setTimeout(()=>{
+        const m=openOnes().length;
+        if(m<pushed){const k=pushed-m; pushed=m; skip+=k; history.go(-k)}
+      },80);
+    }
   }).observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
   addEventListener('popstate',()=>{
     if(skip>0){skip--; return}          // 自己退的那格,不是使用者滑的
