@@ -249,9 +249,9 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
 .sp{padding:6px 10px;border:1px solid var(--line);background:var(--card);border-radius:6px;
   font-size:13px;font-weight:600;color:var(--mute);cursor:pointer;white-space:nowrap}
 .sp.on{background:var(--teal);border-color:var(--teal);color:#fff}
-#ecd{border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px;
+#ecd,#rdate{border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px;
   font-family:inherit;background:var(--card);color:var(--ink);font-weight:600}
-#ecd:focus{outline:1px solid var(--teal)}
+#ecd:focus,#rdate:focus{outline:1px solid var(--teal)}
 .ecdx{padding:7px 11px;border:1px solid var(--line);border-radius:6px;background:var(--card);
   color:var(--mute);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer}
 #code{border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:13px;
@@ -470,6 +470,9 @@ nav div b{display:block;font-size:11px;font-weight:600;opacity:.6;font-variant-n
       </div>
       <div class="optbox">
         <div class="orow"><span class="olab">類別</span><span id="pCat" style="display:contents"></span></div>
+        <!-- 紀錄、專案、調查是「哪一天做的」,預設今天,補登以前的事就選日期 -->
+        <div class="orow" id="rDate"><span class="olab">日期</span>
+          <input type="date" id="rdate"><button class="ecdx" id="rdToday">今天</button></div>
         <div class="orow"><span class="olab">站別</span><span id="pSta" style="display:contents"></span></div>
         <div class="orow"><span class="olab">機台</span><span id="pMac" style="display:contents"></span></div>
         <div class="orow" id="rEcd"><span class="olab">ECD</span>
@@ -939,7 +942,7 @@ const Data={
       event:f.event||'',kind:f.kind||'',major:f.major||'',minors:f.minors||[],
       text:f.text,detail:f.detail||'',ecd:f.ecd??null,
       status:f.family==='待辦'?'未處理':'—',
-      created:t,updated:t,at:t,edited:null,doneAt:null,events:[{at:t,to:'建立'}],
+      created:t,updated:t,at:f.at||t,edited:null,doneAt:null,events:[{at:t,to:'建立'}],
       deleted:false,dirty:true})},
   /* 編輯內容刻意不動 updated / at:
      updated 是「狀態最後有進展的時間」,停滯天數與排序都靠它。
@@ -947,7 +950,10 @@ const Data={
   async update(id,f){const it=await byId(id); if(!it) return;
     return Store.put({...it,cat:f.cat,sta:f.sta,mac:f.mac||'',code:f.code||'',event:f.event||'',
       kind:f.kind||'',major:f.major||'',minors:f.minors||[],
-      text:f.text,detail:f.detail||'',ecd:f.ecd??null,edited:Date.now(),dirty:true})},
+      text:f.text,detail:f.detail||'',ecd:f.ecd??null,
+      /* at 是「這件事哪一天做的」,使用者在表單上明確改了日期才換;
+         它不是狀態,改它跟改錯字一樣只動 edited,updated 照舊不動 */
+      at:f.at??it.at,edited:Date.now(),dirty:true})},
   /* 治工具改編號。編號是這支的身分,整串履歷都要跟著改,
      不然舊事件留在舊編號底下,一支會被拆成兩支。算內容變更,動 edited 不動 updated。
      機台和種類也一樣:這支是固定在某台機台上的,改了就整串一起改。 */
@@ -1137,6 +1143,8 @@ const elTxt=$('txt'), elCode=$('code'), elErr=$('err'), veil=$('veil'), elDet=$(
 // <input type="date"> 收發的是 YYYY-MM-DD,存的是當天凌晨的時間戳
 const ecdToInput=t=>{if(t==null)return'';const d=new Date(t);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+const DATED=['紀錄','專案','調查'];   // 這幾類有「哪一天做的」日期,可以補登
+const todayInput=()=>ecdToInput(Date.now());
 const inputToEcd=v=>{if(!v)return null;const t=new Date(v+'T00:00:00').getTime();
   return Number.isFinite(t)?t:null};
 const d0=t=>new Date(t).setHours(0,0,0,0);
@@ -2053,6 +2061,8 @@ function renderForm(){
   const sv=form.family==='調查';
   $('rDetail').style.display=sv?'':'none';
   $('rEcd').style.display=form.family==='待辦'?'flex':'none';   // 只有待辦有到期日
+  $('rDate').style.display=DATED.includes(form.family)?'flex':'none';   // 待辦用建立時間,不給改
+  $('rdate').max=todayInput();
   /* 類別那一列:調查只有一種,藏起來;紀錄在編輯時也藏起來——
      治工具、保養、備品的欄位完全不同,編到一半換類別只會做出壞掉的組合 */
   $('pCat').parentNode.style.display=sv||(form.family==='紀錄'&&ed)||q?'none':'flex';
@@ -2074,7 +2084,8 @@ function openForm(it){
     form.id=it.id; form.family=it.family; form.cat=it.cat; form.sta=it.sta;
     form.mac=it.mac; form.code=it.code; form.event=it.event||'使用中';
     form.kind=it.kind||''; form.major=it.major||''; form.minors=[...(it.minors||[])];
-    form.detail=it.detail||''; form.ecd=it.ecd??null;
+    form.detail=it.detail||''; form.ecd=it.ecd??null; form.at=it.at;
+    $('rdate').value=ecdToInput(it.at);
     elTxt.value=it.text; elCode.value=it.code; elDet.value=form.detail;
     elEcd.value=ecdToInput(form.ecd);
   }else{
@@ -2090,7 +2101,8 @@ function openForm(it){
     form.kind=subKind()??(Opts.kinds[0]||'');
     // 正在看某個大項的時間軸,要記的就是那一項
     form.major=fam==='紀錄'&&isPm('紀錄',form.cat)&&pmMajor?pmMajor:''; form.minors=[];
-    form.detail=''; form.ecd=null;
+    form.detail=''; form.ecd=null; form.at=null;
+    $('rdate').value=todayInput();
     elTxt.value=''; elCode.value=''; elDet.value=''; elEcd.value='';
   }
   elErr.classList.remove('on');
@@ -2104,7 +2116,8 @@ function openForm(it){
 // 從治工具卡片上按「NG / 送修中…」進來:編號機台都定了,只問一句為什麼
 function openFxStatus(f,st){
   Object.assign(form,{id:null,family:'紀錄',cat:'治工具',code:f.code,kind:f.kind,
-    sta:f.sta,mac:f.mac,event:st,major:'',minors:[],detail:'',ecd:null,quick:true,adding:''});
+    sta:f.sta,mac:f.mac,event:st,major:'',minors:[],detail:'',ecd:null,at:null,quick:true,adding:''});
+  $('rdate').value=todayInput();
   elTxt.value=''; elCode.value=f.code; elErr.classList.remove('on');
   renderForm(); veil.classList.add('on');
   setTimeout(()=>elTxt.focus(),180);
@@ -2149,6 +2162,16 @@ $('save').onclick=async()=>{
   const fx=isFx(form.family,form.cat), pm=isPm(form.family,form.cat);
   form.detail=form.family==='調查'?elDet.value:'';
   form.ecd=form.family==='待辦'?inputToEcd(elEcd.value):null;
+  if(DATED.includes(form.family)){
+    const v=$('rdate').value, orig=form.id?all.find(x=>x.id===form.id):null;
+    if(!v) return fail('選一個日期',$('rdate'));
+    if(v>todayInput()) return fail('日期不能是以後的日子',$('rdate'));
+    /* 日期沒動就保留原本的時間點;選今天就用現在;選以前的日子放在那天中午——
+       放半夜的話,時區一偏就會跑到前一天 */
+    form.at=orig&&v===ecdToInput(orig.at)?orig.at
+      :v===todayInput()?Date.now()
+      :inputToEcd(v)+12*36e5;
+  }else form.at=null;
   if(fx){
     // 編號一律轉大寫。b-13 和 B-13 若分成兩支,NG 頻率就永遠算不對。
     form.code=(form.quick?form.code:elCode.value).trim().toUpperCase();
@@ -2187,7 +2210,9 @@ $('save').onclick=async()=>{
     // 記完直接看到它:分大項的跳到那個大項的時間軸
     if(form.family==='紀錄') pmMajor=pm?form.major:null;
     open=fx?'fx:'+form.code:null; await render();
-    toast(q?`${form.code} → ${form.event}`:fx?`加了 ${form.code}`:'記下了');
+    // 補登以前的日子時把日期講出來,免得以為選錯了又不知道
+    const back=form.at&&ecdToInput(form.at)!==todayInput()?`(${md(form.at)})`:'';
+    toast((q?`${form.code} → ${form.event}`:fx?`加了 ${form.code}`:'記下了')+back);
   }
   Sync.push();
 };
@@ -2616,6 +2641,7 @@ const closeCats=()=>{catDel=null; cveil.classList.remove('on')};
 $('cclose').onclick=closeCats;
 cveil.onclick=e=>{if(e.target===cveil) closeCats()};
 $('ecdClr').onclick=()=>{elEcd.value=''; form.ecd=null};
+$('rdToday').onclick=()=>{$('rdate').value=todayInput(); elErr.classList.remove('on')};
 $('cnew').oninput=()=>$('cerr').classList.remove('on');
 $('cadd').onclick=async()=>{
   const err=await Cats.add($('cnew').value);
