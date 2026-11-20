@@ -1143,7 +1143,8 @@ const elTxt=$('txt'), elCode=$('code'), elErr=$('err'), veil=$('veil'), elDet=$(
 // <input type="date"> 收發的是 YYYY-MM-DD,存的是當天凌晨的時間戳
 const ecdToInput=t=>{if(t==null)return'';const d=new Date(t);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
-const DATED=['紀錄','專案','調查'];   // 這幾類有「哪一天做的」日期,可以補登
+const DATED=['紀錄','專案','調查'];
+const agoTxt=d=>d===0?'今天':d>0?`${d} 天前`:`${-d} 天後`;   // 預先記的日子在以後,不要出現「-3 天前」   // 這幾類有「哪一天做的」日期,可以補登
 const todayInput=()=>ecdToInput(Date.now());
 const inputToEcd=v=>{if(!v)return null;const t=new Date(v+'T00:00:00').getTime();
   return Number.isFinite(t)?t:null};
@@ -1380,10 +1381,13 @@ function majorStats(cat,recs){
   return names.map(m=>{
     const rs=recs.filter(r=>r.major===m).sort((a,b)=>b.at-a.at);
     const p=Opts.pmOf(cat,m), cy=p&&p.cycle;
+    /* 預先記的(日期在以後)不算「上次做」,也不拿來判斷週期——
+       不然排了一筆下個月的,超過週期的那一項就看起來像剛做完 */
+    const now=Date.now(), done=rs.filter(r=>r.at<=now), plan=rs.filter(r=>r.at>now);
     const lastBy=new Map();
-    for(const r of rs){const k=r.sta+'|'+r.mac; if(!lastBy.has(k)) lastBy.set(k,r)}
+    for(const r of done){const k=r.sta+'|'+r.mac; if(!lastBy.has(k)) lastBy.set(k,r)}
     const lasts=[...lastBy.values()];
-    return {name:m,recs:rs,last:rs[0]||null,cycle:cy,machines:lastBy.size,
+    return {name:m,recs:rs,last:done[0]||null,next:plan[plan.length-1]||null,cycle:cy,machines:lastBy.size,
       over:cy?lasts.filter(r=>days(r.at)>cy):[],
       near:cy?lasts.filter(r=>{const d=days(r.at); return d<=cy&&d>=cy-7}):[]};
   });
@@ -1397,13 +1401,13 @@ function tileInfo(key,scoped){
       big:need?`${need}<small>支待處理</small>`:`${live.length}<small>支 · 都正常</small>`,
       lines:[parts.length?parts.join(' &nbsp;'):`使用中 ${n('使用中')} · 備用 ${n('備用')}`],more:''};
   }
-  const recs=scoped.filter(i=>i.cat===key).sort((a,b)=>b.at-a.at), last=recs[0];
+  const recs=scoped.filter(i=>i.cat===key).sort((a,b)=>b.at-a.at), last=recs.find(i=>i.at<=Date.now())||recs[0];
   const lastLine=last?`<b>${md(last.at)}</b> ${last.major?esc(shortM(last.major))+' · ':''}${esc(last.text||last.minors.join('、')||'')}`
     :'還沒有紀錄';
   if(Opts.recType(key)==='pm'){
     const ms=majorStats(key,recs), over=ms.reduce((a,m)=>a+m.over.length,0);
     return {badge:over,hot:over>0,
-      big:over?`${over}<small>項超過週期</small>`:last?`${days(last.at)}<small>天前做過</small>`:`0<small>筆</small>`,
+      big:over?`${over}<small>項超過週期</small>`:last&&days(last.at)>=0?`${days(last.at)}<small>天前做過</small>`:`${recs.length}<small>筆</small>`,
       lines:[lastLine],
       more:ms.filter(m=>m.over.length).slice(0,2).map(m=>`<div class="wrow"><span>${esc(shortM(m.name))}</span><span>${
         days(m.over[0].at)} 天 / ${m.cycle}</span></div>`).join('')
@@ -1448,7 +1452,8 @@ function renderMajors(L,C,cat){
         ?`<div class="ago">${d===0?'今天':`${d}<small>天前</small>`}</div>
           <div class="ml">上次 ${fullDate(m.last.at)}</div>
           <div class="ml">${m.machines>1?`${m.machines} 台機台`:`${m.last.sta?`<b>${m.last.sta}</b> `:''}${esc(m.last.mac||'未指定機台')}`}</div>`
-        :`<div class="ago none">還沒有紀錄</div><div class="ml">${fltOn()?'這個範圍沒有':'點進去,用＋記第一筆'}</div>`}
+        :`<div class="ago none">${m.next?'還沒做過':'還沒有紀錄'}</div><div class="ml">${m.next?'':fltOn()?'這個範圍沒有':'點進去,用＋記第一筆'}</div>`}
+      ${m.next?`<div class="ml"><b>預定 ${md(m.next.at)}</b></div>`:''}
       ${cyPill(m)}</div>`}).join('')}
     <div class="mtile add" data-addmajor="1">＋ 大項</div></div>`
     +(tileEdit?'<div class="thint">點 ✎ 改名、設定週期或刪除。改完按右上角「完成」或用返回手勢。</div>':'');
@@ -1462,12 +1467,12 @@ function renderTimeline(L,C,cat,major){
   const gaps=recs.slice(0,-1).map((r,i)=>Math.round((d0(r.at)-d0(recs[i+1].at))/DAY));
   const real=gaps.filter(g=>g>0);
   const avg=solo&&real.length?Math.round(real.reduce((a,b)=>a+b,0)/real.length):null;
-  const last=recs[0], d=last?days(last.at):null;
+  const last=recs.find(r=>r.at<=Date.now())||null, d=last?days(last.at):null;
   const subs=[...new Set([...(p?p.subs:[]),...recs.flatMap(r=>r.minors)])];
   let h=`<div class="tsum">${last
       ?`<div class="k">上次${esc(catLabel(cat))}</div><div class="sd">${fullDate(last.at)}</div>
         <div class="sa${cy&&solo&&d>cy?' over':''}">${d===0?'今天':`${d} 天前`}</div>`
-      :`<div class="k">${esc(shortM(major))}</div><div class="sd" style="font-size:18px;color:var(--mute)">${fltOn()?'這個範圍還沒有紀錄':'還沒有紀錄'}</div><div></div>`}
+      :`<div class="k">${esc(shortM(major))}</div><div class="sd" style="font-size:18px;color:var(--mute)">${recs.length?'還沒做過,只有預定':fltOn()?'這個範圍還沒有紀錄':'還沒有紀錄'}</div><div></div>`}
     <div class="s">${recs.length?`<span>共 <b>${recs.length}</b> 筆</span>`:''}${avg?`<span>平均每 <b>${avg}</b> 天一次</span>`:''}${
       !solo?`<span>${new Set(recs.map(r=>r.sta+'|'+r.mac)).size} 台機台</span>`:''}
       <button class="cyb" data-cycle="1">${cy?`週期 ${cy} 天`:'設定週期'}</button>
@@ -1485,7 +1490,7 @@ function renderTimeline(L,C,cat,major){
     h+=`<div class="dt" data-tap="${r.id}"><b>${t.getMonth()+1}/${String(t.getDate()).padStart(2,'0')}</b><span>週${WEEK[t.getDay()]}</span></div>
       <div class="rail${i===0?' first':''}"><i></i></div>
       <div class="ct"><div data-tap="${r.id}"><div class="tx${r.text?'':' dim'}">${esc(r.text||(r.minors.length?'':'(沒有備註)'))}</div>
-        <div class="lc">${loc(r)}${r.dirty?'<span class="pin">待上傳</span>':''}${r.edited&&ex?`<span>編輯 ${md(r.edited)}</span>`:''}</div>
+        <div class="lc">${r.at>Date.now()?`<span class="pin">預定 · ${agoTxt(days(r.at))}</span>`:''}${loc(r)}${r.dirty?'<span class="pin">待上傳</span>':''}${r.edited&&ex?`<span>編輯 ${md(r.edited)}</span>`:''}</div>
         ${r.minors.length?`<div class="tags">${r.minors.map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:''}</div>
         ${ex?editRow(r):''}</div>`;
     if(solo&&i<gaps.length){
@@ -1853,7 +1858,7 @@ async function render(){
     const us=ps.filter(i=>i.cat===p).sort((a,b)=>b.at-a.at);
     const last=us[0]?days(us[0].at):null;
     return `<div class="pcard"><h2>${p}</h2><div class="pmeta ${last!==null&&last>=14?'hot':''}">${
-      last===null?'尚無進度紀錄':`${us.length} 則更新 · 最近 ${last===0?'今天':`${last} 天前`}`}</div></div>`
+      last===null?'尚無進度紀錄':`${us.length} 則更新 · 最近 ${agoTxt(last)}`}</div></div>`
       +(us.map(i=>cardProj(i,open===i.id)).join('')||'<div class="empty" style="padding:16px">還沒有更新。</div>')}).join('');
 }
 
@@ -2062,7 +2067,6 @@ function renderForm(){
   $('rDetail').style.display=sv?'':'none';
   $('rEcd').style.display=form.family==='待辦'?'flex':'none';   // 只有待辦有到期日
   $('rDate').style.display=DATED.includes(form.family)?'flex':'none';   // 待辦用建立時間,不給改
-  $('rdate').max=todayInput();
   /* 類別那一列:調查只有一種,藏起來;紀錄在編輯時也藏起來——
      治工具、保養、備品的欄位完全不同,編到一半換類別只會做出壞掉的組合 */
   $('pCat').parentNode.style.display=sv||(form.family==='紀錄'&&ed)||q?'none':'flex';
@@ -2165,8 +2169,7 @@ $('save').onclick=async()=>{
   if(DATED.includes(form.family)){
     const v=$('rdate').value, orig=form.id?all.find(x=>x.id===form.id):null;
     if(!v) return fail('選一個日期',$('rdate'));
-    if(v>todayInput()) return fail('日期不能是以後的日子',$('rdate'));
-    /* 日期沒動就保留原本的時間點;選今天就用現在;選以前的日子放在那天中午——
+    /* 日期沒動就保留原本的時間點;選今天就用現在;選別天(以前補登、以後預先記)放在那天中午——
        放半夜的話,時區一偏就會跑到前一天 */
     form.at=orig&&v===ecdToInput(orig.at)?orig.at
       :v===todayInput()?Date.now()
@@ -2467,7 +2470,7 @@ async function buildSheets(){
       // 先一張「各大項 × 機台,上次做是什麼時候」,再一張完整紀錄
       const rows=[];
       for(const m of majorStats(r.name,rs)){
-        const by=new Map(); for(const x of m.recs){const k=x.sta+'|'+x.mac; if(!by.has(k)) by.set(k,x)}
+        const by=new Map(); for(const x of m.recs.filter(r=>r.at<=Date.now())){const k=x.sta+'|'+x.mac; if(!by.has(k)) by.set(k,x)}
         if(!by.size) rows.push([{v:shortM(m.name),s:'b'},'','',{v:'還沒有紀錄',s:'mute'},'',m.cycle||'',{v:'—',s:'mute'}]);
         for(const x of by.values()){const d=days(x.at), st=m.cycle?(d>m.cycle?'超過週期':d>=m.cycle-7?'快到期':'正常'):'沒有週期';
           rows.push([{v:shortM(m.name),s:'b'},x.sta,x.mac,D(x.at),d,m.cycle||'',{v:st,s:st==='超過週期'?'bad':st==='快到期'?'warn':st==='正常'?'ok':'mute'}])}
